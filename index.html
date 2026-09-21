@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Explore signature Filipino dishes by region."
+    />
+    <title>Tahak sa Panlasa | Filipino Food Map</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link href="css/style.css" rel="stylesheet" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="logo">
+        <a href="index.html"
+          ><img src="img/logo.png" alt="Tahak sa Panlasa logo"
+        /></a>
+      </div>
+      <div class="header-actions">
+        <button class="menu-toggle" aria-label="Open navigation" aria-expanded="false">☰</button>
+        <nav class="main-nav" aria-label="Main navigation">
+          <a class="active" href="index.html">Home</a>
+          <a href="dishes.html">Dishes</a>
+          <a href="map.html">Map</a>
+          <a href="culture.html">Culture</a>
+          <a href="gallery.html">Gallery</a>
+          <a href="builders.html">Builders</a>
+        </nav>
+        <button class="theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="false">
+          <span class="theme-icon">☀️</span>
+          <span class="theme-label">Light</span>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="map-section">
+        <div class="map-intro">
+          <p class="eyebrow">A taste trail through the Philippines</p>
+          <h1>Regional Food Map of the Philippines</h1>
+          <p>
+            From Luzon to Mindanao, select a pin to discover a signature dish
+            from every region.
+          </p>
+        </div>
+        <div
+          id="leaflet-map"
+          class="map-container"
+          aria-label="Interactive map of Philippine regional foods"
+        ></div>
+      </section>
+    </main>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="Javascript/script.js"></script>
+
+    <!--Featured dishes-->
+    <section class="dishes-section section-pad" id="dishes">
+      <div class="section-heading dish-heading reveal">
+        <div>
+          <p class="eyebrow"><span></span>From our kitchen</p>
+        <h2>Find your next favourite</h2>
+        </div>
+        <a class="text-link" href="dishes.html"
+        View all dishes <span></span></a>
+    </div>
+        <div class="dish-toolbar">
+          <div class="search-box">
+            <span>⌕</span
+            ><input
+              id="dish-search"
+              type="search"
+              placeholder="Search a dish or ingredient"
+              aria-label="Search dishes"
+            />
+          </div>
+          <div
+            class="filter-group"
+            role="group"
+            aria-label="Filter dishes by region"
+          >
+            <button class="filter active" data-filter="all">All dishes</button
+            ><button class="filter" data-filter="Luzon">Luzon</button
+            ><button class="filter" data-filter="Visayas">Visayas</button
+            ><button class="filter" data-filter="Mindanao">Mindanao</button>
+          </div>
+        </div>
+        <div class="dish-grid" id="dish-grid"></div>
+        <p class="empty-state" id="empty-state">
+          No dishes found. Try another flavor.
+        </p>
+      </section>
+      </div>
+    </section>
+    <!-- Culture and story section -->
+      <section class="culture-section" id="culture">
+        <div class="culture-image">
+          <img
+            src="https://images.unsplash.com/photo-1515003197210-e0cd71810b5f?auto=format&fit=crop&w=1100&q=85"
+            alt="Fresh local ingredients prepared for a Filipino meal"
+          />
+          <div class="vertical-label">FROM THE ARCHIVE / 001</div>
+        </div>
+        <div class="culture-copy section-pad reveal">
+          <p class="eyebrow"><span></span> More than a meal</p>
+          <h2>Food is how we<br /><em>remember home.</em></h2>
+          <p>
+            In the Philippines, recipes are rarely written down. They live in
+            the hands of our lolas, in Sunday lunches that stretch into
+            afternoon, and in the first bite that takes you somewhere familiar.
+          </p>
+          <a class="button button-light" href="gallery.html"
+            >Read our stories <span>→</span></a
+          >
+          <div class="quote-mark">“</div>
+        </div>
+      </section>
+
+      <!-- Photo gallery section -->
+      <section class="gallery-section section-pad" id="gallery">
+        <div class="section-heading reveal">
+          <div>
+            <p class="eyebrow"><span></span> A little taste of home</p>
+            <h2>Gather around</h2>
+          </div>
+          <p class="heading-aside">
+            The colors, hands, and little rituals behind every plate.
+          </p>
+        </div>
+        <div class="gallery-grid">
+          <figure class="gallery-large reveal">
+            <img
+              src="https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=1000&q=85"
+              alt="Filipino ingredients and vegetables"
+            />
+            <figcaption>Ingredients with a story</figcaption>
+          </figure>
+          <figure class="reveal reveal-delay">
+            <img
+              src="https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=700&q=85"
+              alt="Handmade dumplings being prepared"
+            />
+            <figcaption>Made by hand</figcaption>
+          </figure>
+          <figure class="reveal reveal-delay-2">
+            <img
+              src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=700&q=85"
+              alt="A colorful shared table"
+            />
+            <figcaption>Always shared</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- Team section -->
+      <section class="builders-section section-pad" id="builders">
+        <div class="section-heading reveal">
+          <div>
+            <p class="eyebrow"><span></span> The people behind the journey</p>
+            <h2>Built with <em>puso.</em></h2>
+          </div>
+          <p class="heading-aside">
+            Meet the team who brought Tahak sa Panlasa from an idea to a digital
+            table for everyone.
+          </p>
+        </div>
+        <div class="builder-feature reveal">
+          <img
+            src="https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=1200&q=85"
+            alt="A team preparing food together in a kitchen"
+          />
+          <div class="builder-feature-copy">
+            <span>From idea to table</span>
+            <h3>A shared vision, made together.</h3>
+            <p>Every page, story, and flavor trail was shaped by our team.</p>
+          </div>
+        </div>
+        <div class="builder-grid">
+          <article class="builder-card builder-lead reveal">
+            <span class="builder-number">01</span>
+            <img
+              class="builder-avatar"
+              src="img/renz.jpg"
+              alt="Jhurenz"
+            />
+            <div>
+              <p class="builder-role">Project Leader / Programmer</p>
+              <h3>Arapoc, Jhurenz M.</h3>
+              <p class="builder-description">
+                Leads the project and builds the interactive website experience.
+              </p>
+            </div>
+          </article>
+          <article class="builder-card reveal reveal-delay">
+            <span class="builder-number">02</span>
+            <img
+              class="builder-avatar"
+              src=""
+              alt="Aron"
+            />
+            <div>
+              <p class="builder-role">Web Designer</p>
+              <h3>Seludo, Aron S.</h3>
+              <p class="builder-description">
+                Shapes the visual identity and responsive design of the site.
+              </p>
+            </div>
+          </article>
+          <article class="builder-card reveal reveal-delay-2">
+            <span class="builder-number">03</span>
+            <img
+              class="builder-avatar"
+              src="img/nows.jpg"
+              alt="Noah"
+            />
+            <div>
+              <p class="builder-role">Content Manager</p>
+              <h3>Lontoc, Noah</h3>
+              <p class="builder-description">
+                Organizes the dish details, stories, and cultural content.
+              </p>
+            </div>
+          </article>
+          <article class="builder-card reveal">
+            <span class="builder-number">04</span>
+            <img
+              class="builder-avatar"
+              src=""
+              alt="Jester"
+            />
+            <div>
+              <p class="builder-role">Researcher</p>
+              <h3>Teodosio, Jester</h3>
+              <p class="builder-description">
+                Researches regional dishes, ingredients, and Filipino
+                traditions.
+              </p>
+            </div>
+          </article>
+          <article class="builder-card reveal reveal-delay">
+            <span class="builder-number">05</span>
+            <img
+              class="builder-avatar"
+              src="img/jay.jpg"
+              alt="rodjay"
+            />
+            <div>
+              <p class="builder-role">Documentation Officer</p>
+              <h3>Sabornido, Rodjay S.</h3>
+              <p class="builder-description">
+                Records the project process, testing, and final documentation.
+              </p>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <!-- Site footer -->
+    <footer class="site-footer">
+      <span>©Tahak sa Panlasa</span
+      ><span>Made with puso in the Philippines</span>
+    </footer>
+    <button class="back-to-top" type="button" aria-label="Back to top"></button>
+    <!-- Dish details -->
+    <div
+      class="modal"
+      id="dish-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
+      <div class="modal-content">
+        <button class="modal-close" aria-label="Close dish details">×</button
+        ><img id="modal-image" src="" alt="" />
+        <div class="modal-copy">
+          <span class="modal-region" id="modal-region"></span>
+          <h2 id="modal-title"></h2>
+          <p id="modal-description"></p>
+          <div class="modal-meta">
+            <div><span>Origin</span><strong id="modal-origin"></strong></div>
+            <div>
+              <span>Key ingredients</span
+              ><strong id="modal-ingredients"></strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

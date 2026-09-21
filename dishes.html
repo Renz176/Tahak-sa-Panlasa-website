@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Browse signature Filipino dishes and discover the flavors behind each region."
+    />
+    <title>Dishes | Tahak sa Panlasa</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link href="css/style.css" rel="stylesheet" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="logo">
+        <a href="index.html"
+          ><img src="img/logo.png" alt="Tahak sa Panlasa logo"
+        /></a>
+      </div>
+      <div class="header-actions">
+        <button
+          class="menu-toggle"
+          aria-label="Open navigation"
+          aria-expanded="false"
+        >
+          ☰
+        </button>
+        <nav class="main-nav" aria-label="Main navigation">
+          <a href="index.html">Home</a>
+          <a class="active" href="dishes.html">Dishes</a>
+          <a href="map.html">Map</a>
+          <a href="culture.html">Culture</a>
+          <a href="gallery.html">Gallery</a>
+          <a href="builders.html">Builders</a>
+        </nav>
+        <button
+          class="theme-toggle"
+          type="button"
+          aria-label="Toggle dark mode"
+          aria-pressed="false"
+        >
+          <span class="theme-icon">☀️</span>
+          <span class="theme-label">Light</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="page-hero section-pad">
+        <p class="eyebrow"><span></span> From our kitchen</p>
+        <h1>Find your next favorite.</h1>
+      </section>
+
+      <section class="section-pad page-panel">
+        <div class="dish-toolbar">
+          <div class="search-box">
+            <span>⌕</span>
+            <input
+              id="dish-search"
+              type="search"
+              placeholder="Search a dish or ingredient"
+              aria-label="Search dishes"
+            />
+          </div>
+          <div
+            class="filter-group"
+            role="group"
+            aria-label="Filter dishes by region"
+          >
+            <button class="filter active" data-filter="all">All dishes</button>
+            <button class="filter" data-filter="Luzon">Luzon</button>
+            <button class="filter" data-filter="Visayas">Visayas</button>
+            <button class="filter" data-filter="Mindanao">Mindanao</button>
+          </div>
+        </div>
+        <div class="dish-grid" id="dish-grid"></div>
+        <p class="empty-state" id="empty-state">
+          No dishes found. Try another flavor.
+        </p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>© 2024 Tahak sa Panlasa</span>
+      <span>Made with puso in the Philippines</span>
+    </footer>
+
+    <button class="back-to-top" type="button" aria-label="Back to top"></button>
+
+    <div
+      class="modal"
+      id="dish-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
+      <div class="modal-content">
+        <button class="modal-close" aria-label="Close dish details">×</button>
+        <img id="modal-image" src="" alt="" />
+        <div class="modal-copy">
+          <span class="modal-region" id="modal-region"></span>
+          <h2 id="modal-title"></h2>
+          <p id="modal-description"></p>
+          <div class="modal-meta">
+            <div><span>Origin</span><strong id="modal-origin"></strong></div>
+            <div>
+              <span>Key ingredients</span
+              ><strong id="modal-ingredients"></strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="Javascript/script.js"></script>
+  </body>
+</html>
