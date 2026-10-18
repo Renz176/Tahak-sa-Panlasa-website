@@ -5228,6 +5228,12 @@ body:not(.home-page) .page-hero h1 {
   text-transform: none;
 }
 
+.dishes-suggest-link {
+  align-self: flex-start;
+  width: fit-content;
+  margin-top: 20px;
+}
+
 body:not(.home-page) .page-shell .page-panel {
   max-width: 1440px;
   margin: auto;
@@ -9615,6 +9621,161 @@ body.home-page.dark-mode .home-hero-note>span {
   padding: 0 0 clamp(64px, 8vw, 100px);
 }
 
+.feedback-account {
+  margin: 0 0 48px;
+  padding: clamp(22px, 4vw, 34px);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+}
+
+.login-page-main {
+  width: min(100% - 48px, 640px);
+  margin: 0 auto;
+  padding: clamp(72px, 10vw, 120px) 0 clamp(72px, 10vw, 120px);
+}
+
+.login-account {
+  margin: 0;
+}
+
+.login-account h1 {
+  margin: 4px 0 8px;
+  color: var(--ink);
+  font: 600 clamp(30px, 5vw, 44px)/1.15 "Playfair Display", serif;
+}
+
+.login-account-intro {
+  margin: 0 0 22px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.feedback-account h2 {
+  margin: 4px 0 8px;
+  font: 600 clamp(23px, 3vw, 30px)/1.2 "Playfair Display", serif;
+}
+
+.feedback-account > p:not(.feedback-form-kicker, .feedback-status) {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.feedback-auth-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.feedback-auth-form[hidden],
+.feedback-signed-in[hidden],
+.feedback-admin-badge[hidden] {
+  display: none;
+}
+
+.feedback-auth-form .field {
+  display: grid;
+  gap: 8px;
+}
+
+.feedback-auth-form .field label {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.feedback-auth-form input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--surface-raised);
+  font: inherit;
+}
+
+.feedback-auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: 10px;
+}
+
+.feedback-auth-actions button,
+.feedback-signed-in button {
+  min-height: 42px;
+  padding: 0 18px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.feedback-account .feedback-auth-actions .button-dark {
+  color: var(--deep);
+  background: var(--yellow);
+}
+
+.feedback-account .feedback-auth-actions .button-outline,
+.feedback-account .feedback-signed-in .button-outline {
+  width: auto;
+  justify-content: center;
+  border: 1px solid var(--orange);
+  color: var(--ink);
+  background: var(--surface-raised);
+  box-shadow: none;
+}
+
+.feedback-signed-in {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.feedback-signed-in > p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.feedback-admin-badge {
+  padding: 5px 10px;
+  border-radius: 999px;
+  color: var(--deep);
+  background: var(--yellow);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.feedback-delete {
+  margin-top: 14px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--surface-raised);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.feedback-delete:hover,
+.feedback-delete:focus-visible {
+  color: #fff;
+  background: #a83220;
+  border-color: #a83220;
+}
+
+.feedback-delete:disabled,
+.feedback-auth-actions button:disabled,
+.feedback-signed-in button:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+
 .feedback-comments-heading {
   display: flex;
   align-items: end;
@@ -9713,6 +9874,14 @@ body.home-page.dark-mode .home-hero-note>span {
     width: min(100% - 32px, 900px);
   }
 
+  .feedback-auth-form {
+    grid-template-columns: 1fr;
+  }
+
+  .feedback-auth-actions {
+    grid-column: auto;
+  }
+
   .feedback-comments-heading {
     align-items: start;
     gap: 12px;
@@ -9735,5 +9904,150 @@ body.home-page.dark-mode .home-hero-note>span {
   .feedback-entry-heading {
     flex-wrap: wrap;
     gap: 6px 10px;
+  }
+}
+
+.suggestion-form {
+  display: grid;
+  gap: 18px;
+}
+
+.suggestion-form .field {
+  display: grid;
+  gap: 8px;
+}
+
+.suggestion-form .field label {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.suggestion-form input,
+.suggestion-form textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--surface-raised);
+  font: inherit;
+}
+
+.suggestion-form input:focus,
+.suggestion-form textarea:focus {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
+}
+
+.suggestion-form textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.suggestion-form .feedback-submit {
+  justify-self: start;
+}
+
+.suggestion-admin {
+  padding-top: 24px;
+}
+
+.suggestion-origin {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.suggestion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.suggestion-actions .button {
+  min-height: 38px;
+  padding: 0 14px;
+}
+
+.suggestion-actions .feedback-delete {
+  margin-top: 0;
+}
+
+.site-music {
+  position: fixed;
+  z-index: 20;
+  bottom: 18px;
+  left: 18px;
+  width: min(310px, calc(100vw - 36px));
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: 0 12px 36px rgba(18, 34, 27, .2);
+}
+
+.site-music-title {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.site-music-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.site-music-controls button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--surface-raised);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.site-music-controls button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.site-music-volume-label {
+  display: grid;
+  flex: 1;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.site-music-volume-label input {
+  width: 100%;
+  accent-color: var(--orange);
+}
+
+.site-music-status {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.site-music audio {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .site-music {
+    bottom: 12px;
+    left: 12px;
+    width: min(290px, calc(100vw - 24px));
   }
 }

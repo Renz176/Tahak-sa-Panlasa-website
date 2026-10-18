@@ -140,7 +140,7 @@ function initBackToTop() {
 initBackToTop();
 document.addEventListener("DOMContentLoaded", initBackToTop);
 
-const WEBSITE_FEEDBACK_STORAGE_KEY = "tahak-website-feedback";
+const FEEDBACK_REFRESH_INTERVAL = 30_000;
 
 function initWebsiteFeedback() {
   const form = document.querySelector("#feedback-form");
@@ -152,6 +152,9 @@ function initWebsiteFeedback() {
   const average = document.querySelector("#feedback-average");
   const count = document.querySelector("#feedback-count");
   const emptyState = document.querySelector("#feedback-empty");
+  const config = window.TAHAK_SUPABASE_CONFIG;
+  let supabaseClient;
+  let isAdmin = false;
   let feedbackEntries = [];
 
   const setStatus = (message, isError = false) => {
@@ -160,8 +163,29 @@ function initWebsiteFeedback() {
     status.hidden = !message;
   };
 
+  const setSubmitEnabled = (enabled) => {
+    submitButton.disabled = !enabled;
+  };
+
+  const isValidConfig = () => {
+    if (!config || typeof config.url !== "string" || typeof config.anonKey !== "string") {
+      return false;
+    }
+    try {
+      const url = new URL(config.url.trim());
+      return (
+        Boolean(config.anonKey.trim()) &&
+        (url.protocol === "https:" ||
+          (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname)))
+      );
+    } catch {
+      return false;
+    }
+  };
+
   const isValidEntry = (entry) =>
     entry &&
+    typeof entry.id === "string" &&
     typeof entry.name === "string" &&
     entry.name.length <= 60 &&
     typeof entry.message === "string" &&
@@ -173,22 +197,43 @@ function initWebsiteFeedback() {
     typeof entry.createdAt === "string" &&
     Number.isFinite(Date.parse(entry.createdAt));
 
-  const loadEntries = () => {
-    try {
-      const storedEntries = localStorage.getItem(WEBSITE_FEEDBACK_STORAGE_KEY);
-      const parsedEntries = storedEntries ? JSON.parse(storedEntries) : [];
-      if (!Array.isArray(parsedEntries)) {
-        throw new TypeError("Saved feedback has an invalid format.");
-      }
-      feedbackEntries = parsedEntries.filter(isValidEntry).slice(0, 100);
-      return true;
-    } catch (error) {
-      setStatus(
-        "Feedback storage is unavailable in this browser. You can read existing comments, but cannot post or save new feedback.",
-        true,
-      );
-      submitButton.disabled = true;
+  const mapDatabaseEntry = (entry) => ({
+    id: entry.id,
+    name: entry.name,
+    message: entry.message,
+    rating: entry.rating,
+    createdAt: entry.created_at,
+  });
+
+  const checkAdmin = async (user) => {
+    if (!user) {
+      isAdmin = false;
       return false;
+    }
+    const { data, error } = await supabaseClient
+      .from("website_admins")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (error) throw error;
+    isAdmin = Boolean(data);
+    return isAdmin;
+  };
+
+  const updateAccountPanel = async (session) => {
+    if (!session) {
+      isAdmin = false;
+      renderEntries();
+      return;
+    }
+
+    try {
+      await checkAdmin(session.user);
+      renderEntries();
+    } catch (error) {
+      console.error("Unable to verify feedback administrator access.", error);
+      isAdmin = false;
+      renderEntries();
     }
   };
 
@@ -212,6 +257,18 @@ function initWebsiteFeedback() {
       message.textContent = entry.message;
       heading.append(author, rating, date);
       item.append(heading, message);
+      if (isAdmin) {
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.className = "feedback-delete";
+        removeButton.dataset.deleteFeedback = entry.id;
+        removeButton.textContent = "Remove feedback";
+        removeButton.setAttribute(
+          "aria-label",
+          `Remove feedback by ${entry.name || "Anonymous"}`,
+        );
+        item.append(removeButton);
+      }
       list.append(item);
     });
 
@@ -228,16 +285,95 @@ function initWebsiteFeedback() {
     if (emptyState) emptyState.hidden = feedbackEntries.length > 0;
   };
 
-  if (!loadEntries()) return;
-  renderEntries();
+  const loadEntries = async () => {
+    try {
+      const { data, error } = await supabaseClient
+        .from("website_feedback")
+        .select("id,name,message,rating,created_at")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      if (!Array.isArray(data)) {
+        throw new TypeError("Shared feedback response has an invalid format.");
+      }
 
-  window.addEventListener("storage", (event) => {
-    if (event.key !== WEBSITE_FEEDBACK_STORAGE_KEY && event.key !== null) return;
-    if (loadEntries()) renderEntries();
+      feedbackEntries = data
+        .map(mapDatabaseEntry)
+        .filter(isValidEntry)
+        .slice(0, 100);
+      renderEntries();
+      if (status.classList.contains("is-error")) setStatus("");
+      return true;
+    } catch (error) {
+      console.error("Unable to load shared website feedback.", error);
+      setStatus(
+        "Shared feedback could not be loaded. Check the internet connection and Supabase setup, then reload this page.",
+        true,
+      );
+      return false;
+    }
+  };
+
+  if (!isValidConfig() || !window.supabase?.createClient) {
+    renderEntries();
+    setSubmitEnabled(false);
+    setStatus(
+      "Feedback and accounts are unavailable. Check the Supabase URL, public anon key, and internet connection.",
+      true,
+    );
+    return;
+  }
+
+  supabaseClient = window.supabase.createClient(config.url.trim(), config.anonKey.trim());
+  setSubmitEnabled(true);
+  renderEntries();
+  loadEntries();
+  window.setInterval(loadEntries, FEEDBACK_REFRESH_INTERVAL);
+
+  list.addEventListener("click", async (event) => {
+    if (!(event.target instanceof Element)) return;
+    const removeButton = event.target.closest("[data-delete-feedback]");
+    if (!removeButton || !isAdmin) return;
+
+    removeButton.disabled = true;
+    try {
+      const { data, error } = await supabaseClient
+        .from("website_feedback")
+        .delete()
+        .eq("id", removeButton.dataset.deleteFeedback)
+        .select("id");
+      if (error) throw error;
+      const [deletedEntry] = Array.isArray(data) ? data : [];
+      if (!deletedEntry) {
+        throw new Error("Feedback was not removed. Confirm administrator access and try again.");
+      }
+      feedbackEntries = feedbackEntries.filter((entry) => entry.id !== deletedEntry.id);
+      renderEntries();
+      setStatus("Feedback removed.");
+    } catch (error) {
+      console.error("Unable to remove shared website feedback.", error);
+      setStatus(error.message || "Unable to remove feedback.", true);
+      removeButton.disabled = false;
+    }
   });
 
-  form.addEventListener("submit", (event) => {
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    window.setTimeout(() => {
+      updateAccountPanel(session);
+    }, 0);
+  });
+  supabaseClient.auth.getSession().then(({ data, error }) => {
+    if (error) {
+      console.error("Unable to restore the feedback account session.", error);
+      return;
+    }
+    updateAccountPanel(data.session);
+  });
+
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (submitButton.disabled) return;
+
     const data = new FormData(form);
     const name = String(data.get("name") || "").trim().slice(0, 60);
     const message = String(data.get("message") || "").trim();
@@ -252,37 +388,418 @@ function initWebsiteFeedback() {
       return;
     }
 
-    const nextEntries = [
-      {
-        name,
-        message,
-        rating,
-        createdAt: new Date().toISOString(),
-      },
-      ...feedbackEntries,
-    ].slice(0, 100);
-
+    setSubmitEnabled(false);
     try {
-      localStorage.setItem(
-        WEBSITE_FEEDBACK_STORAGE_KEY,
-        JSON.stringify(nextEntries),
-      );
+      const { data, error } = await supabaseClient
+        .from("website_feedback")
+        .insert({ name, message, rating })
+        .select("id,name,message,rating,created_at")
+        .single();
+      if (error) throw error;
+      const entry = data && mapDatabaseEntry(data);
+      if (!entry || !isValidEntry(entry)) {
+        throw new TypeError("Supabase returned an invalid saved feedback entry.");
+      }
+
+      feedbackEntries = [entry, ...feedbackEntries]
+        .filter(isValidEntry)
+        .slice(0, 100);
+      renderEntries();
+      form.reset();
+      setStatus("Thanks! Your feedback is shared with visitors on this website.");
     } catch (error) {
+      console.error("Unable to post shared website feedback.", error);
       setStatus(
-        "Your feedback could not be saved in this browser. Check available storage and try again.",
+        "Your feedback could not be shared. Check the internet connection and Supabase setup, then try again.",
         true,
       );
-      return;
+    } finally {
+      setSubmitEnabled(true);
     }
-
-    feedbackEntries = nextEntries;
-    renderEntries();
-    form.reset();
-    setStatus("Thanks! Your feedback is posted and saved in this browser.");
   });
 }
 
 initWebsiteFeedback();
+
+function initLoginPage() {
+  const form = document.querySelector("#account-form");
+  if (!form) return;
+
+  const status = document.querySelector("#account-status");
+  const signedInPanel = document.querySelector("#account-signed-in");
+  const signedInLabel = document.querySelector("#account-signed-in-label");
+  const adminBadge = document.querySelector("#account-admin-badge");
+  const feedbackLink = document.querySelector("#account-feedback-link");
+  const signOutButton = document.querySelector("#account-sign-out");
+  const config = window.TAHAK_SUPABASE_CONFIG;
+  const buttons = form.querySelectorAll('button[type="submit"]');
+
+  const setStatus = (message, isError = false) => {
+    status.textContent = message;
+    status.classList.toggle("is-error", isError);
+    status.hidden = !message;
+  };
+
+  let supabaseClient;
+
+  const updateSession = async (session) => {
+    form.hidden = Boolean(session);
+    signedInPanel.hidden = !session;
+    if (!session) {
+      if (adminBadge) adminBadge.hidden = true;
+      return;
+    }
+
+    signedInLabel.textContent = `Signed in as ${session.user.email || "account"}`;
+    try {
+      const { data, error } = await supabaseClient
+        .from("website_admins")
+        .select("user_id")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      if (error) throw error;
+      if (adminBadge) adminBadge.hidden = !data;
+      if (feedbackLink) {
+        feedbackLink.textContent = data ? "Moderate feedback" : "View feedback";
+      }
+      setStatus(
+        data
+          ? "Administrator access is active. You can moderate feedback on the Feedback page."
+          : "You are signed in. Administrator permissions are granted by the site owner.",
+      );
+    } catch (error) {
+      console.error("Unable to verify account administrator status.", error);
+      if (adminBadge) adminBadge.hidden = true;
+      setStatus("Signed in, but administrator permissions could not be verified.", true);
+    }
+  };
+
+  let validUrl = false;
+  try {
+    const url = new URL(config?.url?.trim() || "");
+    validUrl =
+      url.protocol === "https:" ||
+      (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname));
+  } catch {
+    validUrl = false;
+  }
+
+  if (
+    !validUrl ||
+    typeof config?.anonKey !== "string" ||
+    !config.anonKey.trim() ||
+    !window.supabase?.createClient
+  ) {
+    buttons.forEach((button) => {
+      button.disabled = true;
+    });
+    setStatus(
+      "Accounts are unavailable. Configure the Supabase URL and public anon key before signing in.",
+      true,
+    );
+    return;
+  }
+
+  supabaseClient = window.supabase.createClient(config.url.trim(), config.anonKey.trim());
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    window.setTimeout(() => updateSession(session), 0);
+  });
+  supabaseClient.auth.getSession().then(({ data, error }) => {
+    if (error) {
+      console.error("Unable to restore the account session.", error);
+      setStatus("Unable to restore your account session. Please sign in again.", true);
+      return;
+    }
+    updateSession(data.session);
+  });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const action = event.submitter?.value;
+    const data = new FormData(form);
+    const email = String(data.get("email") || "").trim();
+    const password = String(data.get("password") || "");
+    if (!email || password.length < 8) {
+      setStatus("Enter your email and a password with at least 8 characters.", true);
+      return;
+    }
+
+    buttons.forEach((button) => {
+      button.disabled = true;
+    });
+    try {
+      if (action === "signup") {
+        const { data: signupData, error } = await supabaseClient.auth.signUp({
+          email,
+          password,
+        });
+        if (error) throw error;
+        if (signupData.session) {
+          form.reset();
+          await updateSession(signupData.session);
+          setStatus("Your account was created and you are signed in.");
+        } else {
+          setStatus("Your account was created. Check your email to confirm it, then sign in.");
+        }
+      } else if (action === "signin") {
+        const { data: loginData, error } =
+          await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        form.reset();
+        await updateSession(loginData.session);
+      }
+    } catch (error) {
+      console.error("Account sign-in or sign-up failed.", error);
+      setStatus(error.message || "Unable to complete the account request.", true);
+    } finally {
+      buttons.forEach((button) => {
+        button.disabled = false;
+      });
+    }
+  });
+
+  signOutButton.addEventListener("click", async () => {
+    signOutButton.disabled = true;
+    try {
+      const { error } = await supabaseClient.auth.signOut();
+      if (error) throw error;
+      await updateSession(null);
+      setStatus("You have signed out.");
+    } catch (error) {
+      console.error("Unable to sign out.", error);
+      setStatus(error.message || "Unable to sign out.", true);
+    } finally {
+      signOutButton.disabled = false;
+    }
+  });
+}
+
+initLoginPage();
+
+function initDishSuggestions() {
+  const form = document.querySelector("#dish-suggestion-form");
+  if (!form) return;
+
+  const status = document.querySelector("#dish-suggestion-status");
+  const submitButton = form.querySelector('button[type="submit"]');
+  const adminSection = document.querySelector("#dish-suggestion-admin");
+  const adminStatus = document.querySelector("#suggestion-admin-status");
+  const adminEmpty = document.querySelector("#suggestion-admin-empty");
+  const adminList = document.querySelector("#dish-suggestion-list");
+  const config = window.TAHAK_SUPABASE_CONFIG;
+  let supabaseClient;
+  let isAdmin = false;
+  let suggestions = [];
+
+  const setStatus = (target, message, isError = false) => {
+    target.textContent = message;
+    target.classList.toggle("is-error", isError);
+    target.hidden = !message;
+  };
+
+  const renderSuggestions = () => {
+    adminList.replaceChildren();
+    suggestions.forEach((suggestion) => {
+      const item = document.createElement("li");
+      item.className = "feedback-entry suggestion-entry";
+      const heading = document.createElement("div");
+      heading.className = "feedback-entry-heading";
+      const name = document.createElement("strong");
+      name.textContent = suggestion.dish_name;
+      const statusBadge = document.createElement("span");
+      statusBadge.className = "feedback-admin-badge";
+      statusBadge.textContent =
+        suggestion.status === "approved" ? "Approved for catalog" : "Awaiting review";
+      const date = document.createElement("time");
+      date.dateTime = suggestion.submitted_at;
+      date.textContent = new Date(suggestion.submitted_at).toLocaleDateString();
+      heading.append(name, statusBadge, date);
+
+      const origin = document.createElement("p");
+      origin.className = "suggestion-origin";
+      origin.textContent = suggestion.origin;
+      const ingredients = document.createElement("p");
+      ingredients.textContent = `Ingredients: ${suggestion.ingredients}`;
+      const description = document.createElement("p");
+      description.textContent = suggestion.description;
+      item.append(heading, origin, ingredients, description);
+
+      const actions = document.createElement("div");
+      actions.className = "suggestion-actions";
+      if (suggestion.status !== "approved") {
+        const approveButton = document.createElement("button");
+        approveButton.type = "button";
+        approveButton.className = "button button-dark";
+        approveButton.dataset.reviewSuggestion = suggestion.id;
+        approveButton.textContent = "Approve suggestion";
+        actions.append(approveButton);
+      }
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "feedback-delete";
+      removeButton.dataset.removeSuggestion = suggestion.id;
+      removeButton.textContent = "Remove suggestion";
+      actions.append(removeButton);
+      item.append(actions);
+      adminList.append(item);
+    });
+    adminEmpty.hidden = suggestions.length > 0;
+  };
+
+  const loadAdminSuggestions = async () => {
+    const { data, error } = await supabaseClient
+      .from("dish_suggestions")
+      .select("id,dish_name,origin,ingredients,description,status,submitted_at")
+      .order("submitted_at", { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    if (!Array.isArray(data)) throw new TypeError("Invalid dish suggestion response.");
+    suggestions = data;
+    renderSuggestions();
+  };
+
+  const updateAdminView = async (session) => {
+    isAdmin = false;
+    adminSection.hidden = true;
+    if (!session) return;
+    try {
+      const { data, error } = await supabaseClient
+        .from("website_admins")
+        .select("user_id")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return;
+      isAdmin = true;
+      adminSection.hidden = false;
+      await loadAdminSuggestions();
+      setStatus(
+        adminStatus,
+        "Approved suggestions are marked for the team to verify and add to Javascript/script.js.",
+      );
+    } catch (error) {
+      console.error("Unable to load administrator dish suggestions.", error);
+      setStatus(adminStatus, "Unable to load suggestions. Check administrator setup.", true);
+    }
+  };
+
+  let validUrl = false;
+  try {
+    const url = new URL(config?.url?.trim() || "");
+    validUrl =
+      url.protocol === "https:" ||
+      (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname));
+  } catch {
+    validUrl = false;
+  }
+
+  if (!validUrl || !config?.anonKey?.trim() || !window.supabase?.createClient) {
+    submitButton.disabled = true;
+    setStatus(
+      status,
+      "Suggestions are unavailable until Supabase is configured and this website is online.",
+      true,
+    );
+    return;
+  }
+
+  supabaseClient = window.supabase.createClient(config.url.trim(), config.anonKey.trim());
+  submitButton.disabled = false;
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (submitButton.disabled) return;
+    const data = new FormData(form);
+    const suggestion = {
+      dish_name: String(data.get("dishName") || "").trim(),
+      origin: String(data.get("origin") || "").trim(),
+      ingredients: String(data.get("ingredients") || "").trim(),
+      description: String(data.get("description") || "").trim(),
+    };
+    if (
+      suggestion.dish_name.length < 2 ||
+      suggestion.dish_name.length > 100 ||
+      suggestion.origin.length < 2 ||
+      suggestion.origin.length > 120 ||
+      suggestion.ingredients.length < 3 ||
+      suggestion.ingredients.length > 500 ||
+      suggestion.description.length < 8 ||
+      suggestion.description.length > 1000
+    ) {
+      setStatus(status, "Please complete each field within its stated length.", true);
+      return;
+    }
+
+    submitButton.disabled = true;
+    try {
+      const { error } = await supabaseClient
+        .from("dish_suggestions")
+        .insert(suggestion);
+      if (error) throw error;
+      form.reset();
+      setStatus(status, "Thank you! Your dish suggestion was sent to the team for review.");
+    } catch (error) {
+      console.error("Unable to submit dish suggestion.", error);
+      setStatus(status, "Your suggestion could not be sent. Check your connection and try again.", true);
+    } finally {
+      submitButton.disabled = false;
+    }
+  });
+
+  adminList.addEventListener("click", async (event) => {
+    if (!(event.target instanceof Element) || !isAdmin) return;
+    const approveButton = event.target.closest("[data-review-suggestion]");
+    const removeButton = event.target.closest("[data-remove-suggestion]");
+    const target = approveButton || removeButton;
+    if (!target) return;
+    target.disabled = true;
+    try {
+      if (approveButton) {
+        const { data, error } = await supabaseClient
+          .from("dish_suggestions")
+          .update({ status: "approved" })
+          .eq("id", approveButton.dataset.reviewSuggestion)
+          .select("id,status")
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error("Suggestion was not updated. Check administrator access.");
+        suggestions = suggestions.map((item) =>
+          item.id === data.id ? { ...item, status: data.status } : item,
+        );
+        setStatus(adminStatus, "Suggestion approved for the team to add to the catalog.");
+      } else {
+        const { data, error } = await supabaseClient
+          .from("dish_suggestions")
+          .delete()
+          .eq("id", removeButton.dataset.removeSuggestion)
+          .select("id")
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error("Suggestion was not removed. Check administrator access.");
+        suggestions = suggestions.filter((item) => item.id !== data.id);
+        setStatus(adminStatus, "Suggestion removed.");
+      }
+      renderSuggestions();
+    } catch (error) {
+      console.error("Unable to moderate dish suggestion.", error);
+      setStatus(adminStatus, error.message || "Unable to update suggestion.", true);
+      target.disabled = false;
+    }
+  });
+
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    window.setTimeout(() => updateAdminView(session), 0);
+  });
+  supabaseClient.auth.getSession().then(({ data, error }) => {
+    if (error) {
+      console.error("Unable to restore administrator session for suggestions.", error);
+      return;
+    }
+    updateAdminView(data.session);
+  });
+}
+
+initDishSuggestions();
 
 const dishes = [
   {
@@ -858,7 +1375,7 @@ function initFoodGuide() {
     <section class="food-guide-panel" id="food-guide-panel" role="dialog" aria-label="Website guide" hidden>
       <header><div><strong>Panlasa Guide</strong><small>Your guide to food and culture</small></div><button class="food-guide-clear" type="button" aria-label="Clear conversation">Clear</button><button class="food-guide-close" type="button" aria-label="Close chat">×</button></header>
       <div class="food-guide-messages" aria-live="polite"><article class="guide-message">Mabuhay! Ask me about any page, dish, recipe, feature, or team member on this website.</article></div>
-      <div class="food-guide-suggestions"><button type="button">What pages are on this website?</button><button type="button">What dishes can I explore?</button><button type="button">How do I leave website feedback?</button><button type="button">Who built this website?</button></div>
+      <div class="food-guide-suggestions"><button type="button">What pages are on this website?</button><button type="button">What dishes can I explore?</button><button type="button">How do I suggest a dish?</button><button type="button">How do I use the music player?</button></div>
       <form class="food-guide-form"><label class="sr-only" for="food-guide-input">Ask about this website</label><input id="food-guide-input" maxlength="250" autocomplete="off" placeholder="Ask about this website…" required><button type="submit" aria-label="Send message">↑</button></form>
     </section>`;
   document.body.append(widget);
@@ -915,7 +1432,7 @@ function initFoodGuide() {
   const pageKnowledge = [
     {
       title: "Home page",
-      text: "Home introduces Tahak sa Panlasa, a food and culture journey that starts with Filipino dishes, traditions, and stories, with plans to grow to include food cultures from around the world. Use the navigation to visit Home, Dishes, Our Story, and Feedback. The theme button switches light and dark mode. The dishes can be searched by name or ingredient.",
+      text: "Home introduces Tahak sa Panlasa, a food and culture journey that starts with Filipino dishes, traditions, and stories, with plans to grow to include food cultures from around the world. Use the navigation to visit Home, Dishes, Our Story, Feedback, Suggest a dish, and Login. The theme button switches light and dark mode. The dishes can be searched by name or ingredient.",
     },
     {
       title: "Our Story page",
@@ -930,11 +1447,27 @@ function initFoodGuide() {
     },
     {
       title: "Feedback page",
-      text: "The Feedback page lets visitors add a public comment and a 1-to-5-star rating for the website. Comments are saved in that visitor’s browser and shown on the page in that same browser; they are not uploaded or shared with other visitors or devices.",
+      text: "The Feedback page lets visitors add a public comment and a 1-to-5-star rating for the website. With Supabase configured, comments are shared with visitors on other devices and refresh automatically. Without the project URL, public anon key, and database setup, comments cannot be submitted or loaded. Visitors may also use the Contact Us details shown on this page.",
+    },
+    {
+      title: "Suggest a dish page",
+      text: "Visitors can use the Suggest a dish page to send the team a dish name, origin or food culture, main ingredients, and description. Suggestions are submitted for team review and are not automatically published. The team can review, approve, or remove submissions after Supabase is configured and an administrator signs in. The dish catalog is updated by the team after verifying an approved suggestion.",
+    },
+    {
+      title: "Login page",
+      text: "The separate Login page lets visitors create an optional account, sign in, or sign out. Account features require the Supabase project URL and public anon key in Javascript/supabase-config.js, along with database setup and an internet connection. Signing up does not grant administrator access; the site owner must explicitly add an account UUID to the website_admins table.",
+    },
+    {
+      title: "Website music player",
+      text: "The site-wide music player provides play and pause, mute and unmute, and an adjustable volume slider. To enable playback, add a licensed audio file to the website and set its relative path as src in Javascript/music-config.js. Playback starts only after the visitor chooses Play. Volume and mute preferences are saved in the current browser.",
+    },
+    {
+      title: "Dishes page",
+      text: "The Dishes page is opened using the Dishes navigation link. Visitors can search and filter the collection, open dish details, and follow a link to suggest another dish. Dish suggestions are reviewed by the team before publication.",
     },
     {
       title: "Website features",
-      text: "The site is a food and culture journey that currently starts with Filipino dishes and stories, with plans to expand and share food traditions from around the world. It has a searchable dish collection and cards that open details with ingredients, origins, preparation steps, and YouTube videos. Other features include light and dark themes, a photo gallery, team profiles, a browser-stored website feedback and rating section, a back-to-top button, a moving food photo background, and an opening animation. Some external photos and video links need an internet connection.",
+      text: "The site is a food and culture journey that starts with Filipino dishes and stories, with plans to expand and share food traditions from around the world. It has a searchable dish collection and cards that open details with ingredients, origins, preparation steps, and YouTube videos. Other features include light and dark themes, a photo gallery, team profiles, Supabase-backed public website feedback and ratings when configured, optional accounts, admin moderation, dish suggestions, an adjustable site music player, a site-wide locally curated chatbot, a back-to-top button, a moving food photo background, and an opening animation. Some external photos, account functions, shared data, and video links need an internet connection.",
     },
   ];
   const dishTags = {
@@ -1034,6 +1567,29 @@ function initFoodGuide() {
   };
   const answerFor = (question) => {
     const q = normalize(question);
+    if (
+      /\b(submit|submission|send|suggestion page|suggestions page|suggest a dish page)\b/.test(q) ||
+      (/\b(how|where|review|approve)\b/.test(q) &&
+        /\b(suggest|suggestion|dish)\b/.test(q))
+    ) {
+      lastDishName = "";
+      return "Use the Suggest a dish page from the navigation. Enter its name, origin or food culture, ingredients, and description, then send it for team review. Suggestions are not published automatically. Online submissions and admin review need the site owner's Supabase configuration.";
+    }
+    if (
+      /\b(music|audio|volume|mute)\b/.test(q) &&
+      /\b(player|play|site|website|sound|volume|mute|music)\b/.test(q)
+    ) {
+      lastDishName = "";
+      return "Use the music player at the bottom-left of the page to play or pause, mute or unmute, and adjust volume. Playback is disabled until the site owner adds an audio file path in Javascript/music-config.js. Music starts only after you press Play.";
+    }
+    if (/\b(login|sign in|sign up|account|password)\b/.test(q)) {
+      lastDishName = "";
+      return "Open the separate Login page from the navigation to create an optional account, sign in, or sign out. Admin access is granted by the site owner in Supabase; signing up alone does not make an account an admin.";
+    }
+    if (/\b(feedback|rating|comment|contact us)\b/.test(q)) {
+      lastDishName = "";
+      return "Open Feedback from the navigation to rate the website and leave a comment, or use its Contact Us details. Shared feedback works only after the site owner configures Supabase and runs the supplied database setup.";
+    }
     const group = ["Luzon", "Visayas", "Mindanao"].find((region) =>
       q.includes(region.toLowerCase()),
     );
@@ -1217,6 +1773,136 @@ function initFoodGuide() {
 if (document.readyState === "loading")
   document.addEventListener("DOMContentLoaded", initFoodGuide);
 else initFoodGuide();
+
+function initSiteMusic() {
+  if (document.querySelector(".site-music")) return;
+  const config = window.TAHAK_MUSIC_CONFIG || {};
+  const player = document.createElement("aside");
+  player.className = "site-music";
+  player.setAttribute("aria-label", "Website music player");
+
+  const audio = document.createElement("audio");
+  audio.loop = true;
+  audio.preload = "metadata";
+  if (typeof config.src === "string" && config.src.trim()) {
+    audio.src = config.src.trim();
+  }
+
+  const heading = document.createElement("strong");
+  heading.className = "site-music-title";
+  heading.textContent = config.title || "Website music";
+
+  const controls = document.createElement("div");
+  controls.className = "site-music-controls";
+  const playButton = document.createElement("button");
+  playButton.type = "button";
+  playButton.className = "site-music-play";
+  playButton.textContent = "Play";
+  playButton.setAttribute("aria-label", "Play background music");
+  playButton.disabled = !audio.src;
+
+  const muteButton = document.createElement("button");
+  muteButton.type = "button";
+  muteButton.className = "site-music-mute";
+  muteButton.textContent = "Mute";
+  muteButton.setAttribute("aria-label", "Mute background music");
+
+  const volumeLabel = document.createElement("label");
+  volumeLabel.className = "site-music-volume-label";
+  volumeLabel.textContent = "Volume";
+  const volumeControl = document.createElement("input");
+  volumeControl.type = "range";
+  volumeControl.min = "0";
+  volumeControl.max = "1";
+  volumeControl.step = "0.05";
+  volumeControl.value = "0.4";
+  volumeControl.setAttribute("aria-label", "Music volume");
+  const status = document.createElement("span");
+  status.className = "site-music-status";
+  status.setAttribute("role", "status");
+  status.textContent = audio.src ? "Music is off." : "Add an audio path in Javascript/music-config.js.";
+  volumeLabel.append(volumeControl);
+  controls.append(playButton, muteButton, volumeLabel);
+  player.append(heading, controls, status, audio);
+  document.body.append(player);
+  audio.volume = Number(volumeControl.value);
+
+  try {
+    const savedVolumeValue = localStorage.getItem("tahak-music-volume");
+    if (savedVolumeValue !== null) {
+      const savedVolume = Number(savedVolumeValue);
+      if (Number.isFinite(savedVolume) && savedVolume >= 0 && savedVolume <= 1) {
+        audio.volume = savedVolume;
+        volumeControl.value = String(savedVolume);
+      }
+    }
+    const muted = localStorage.getItem("tahak-music-muted") === "true";
+    audio.muted = muted;
+    muteButton.textContent = muted ? "Unmute" : "Mute";
+    muteButton.setAttribute("aria-label", `${muted ? "Unmute" : "Mute"} background music`);
+  } catch (error) {
+    console.warn("Music preferences are unavailable in this browser.", error);
+  }
+
+  const updatePlayState = () => {
+    const isPlaying = !audio.paused;
+    playButton.textContent = isPlaying ? "Pause" : "Play";
+    playButton.setAttribute(
+      "aria-label",
+      `${isPlaying ? "Pause" : "Play"} background music`,
+    );
+    status.textContent = isPlaying ? "Music is playing." : "Music is off.";
+  };
+
+  playButton.addEventListener("click", async () => {
+    if (!audio.src) {
+      status.textContent = "Add an audio path in Javascript/music-config.js.";
+      return;
+    }
+    try {
+      if (audio.paused) await audio.play();
+      else audio.pause();
+      updatePlayState();
+    } catch (error) {
+      console.error("Unable to play the configured website music.", error);
+      status.textContent = "Music could not be played. Check the audio file path and format.";
+    }
+  });
+
+  audio.addEventListener("play", updatePlayState);
+  audio.addEventListener("pause", updatePlayState);
+  audio.addEventListener("error", () => {
+    status.textContent = "Music could not be loaded. Check the audio file path and format.";
+  });
+  volumeControl.addEventListener("input", () => {
+    audio.volume = Number(volumeControl.value);
+    if (audio.volume > 0 && audio.muted) {
+      audio.muted = false;
+      muteButton.textContent = "Mute";
+      muteButton.setAttribute("aria-label", "Mute background music");
+    }
+    try {
+      localStorage.setItem("tahak-music-volume", String(audio.volume));
+    } catch (error) {
+      console.warn("Unable to save the music volume preference.", error);
+    }
+  });
+  muteButton.addEventListener("click", () => {
+    audio.muted = !audio.muted;
+    muteButton.textContent = audio.muted ? "Unmute" : "Mute";
+    muteButton.setAttribute(
+      "aria-label",
+      `${audio.muted ? "Unmute" : "Mute"} background music`,
+    );
+    try {
+      localStorage.setItem("tahak-music-muted", String(audio.muted));
+    } catch (error) {
+      console.warn("Unable to save the music mute preference.", error);
+    }
+  });
+}
+
+initSiteMusic();
 
 function initFoodAmbience() {
   if (document.querySelector(".food-ambience")) return;

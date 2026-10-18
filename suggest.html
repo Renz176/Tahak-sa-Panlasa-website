@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Suggest a dish for Tahak sa Panlasa to explore and consider adding to its growing food collection."
+    />
+    <title>Suggest a dish | Tahak sa Panlasa</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link href="css/style.css" rel="stylesheet" />
+  </head>
+  <body class="feedback-page">
+    <header class="site-header">
+      <div class="logo">
+        <a class="site-brand" href="index.html">
+          <img src="img/logo-small.png" alt="" width="48" height="48" />
+          <span
+            ><strong>Tahak sa Panlasa</strong
+            ><small>Food · culture · stories</small></span
+          >
+        </a>
+      </div>
+      <div class="header-actions">
+        <button
+          class="menu-toggle"
+          type="button"
+          aria-label="Open navigation"
+          aria-expanded="false"
+        >
+          ☰
+        </button>
+        <nav class="main-nav" aria-label="Main navigation">
+          <a href="index.html">Home</a>
+          <a href="dishes.html">Dishes</a>
+          <a href="builders.html">Our Story</a>
+          <a href="contact.html">Feedback</a>
+          <a class="active" href="suggest.html" aria-current="page"
+            >Suggest a dish</a
+          >
+          <a href="login.html">Login</a>
+        </nav>
+        <label class="home-search">
+          <span aria-hidden="true">⌕</span>
+          <input
+            type="search"
+            id="site-search"
+            placeholder="Search dishes…"
+            aria-label="Search dishes"
+          />
+        </label>
+        <button
+          class="theme-toggle"
+          type="button"
+          aria-label="Toggle dark mode"
+          aria-pressed="false"
+        >
+          <span class="theme-icon">☀️</span
+          ><span class="theme-label">Light</span>
+        </button>
+        <a class="home-menu-link" href="contact.html" aria-label="Send feedback"
+          >✳</a
+        >
+      </div>
+    </header>
+    <main class="feedback-main">
+      <section class="login-page-main" aria-labelledby="suggest-title">
+        <div class="feedback-account login-account">
+          <p class="feedback-form-kicker">Bring a dish to our table</p>
+          <h1 id="suggest-title">Suggest a dish.</h1>
+          <p class="login-account-intro">
+            Tell us about a dish you would like to see. Suggestions are reviewed
+            by the team before any dish is added to the collection.
+          </p>
+          <form id="dish-suggestion-form" class="suggestion-form">
+            <div class="field">
+              <label for="suggest-dish-name">Dish name</label>
+              <input
+                id="suggest-dish-name"
+                name="dishName"
+                required
+                minlength="2"
+                maxlength="100"
+              />
+            </div>
+            <div class="field">
+              <label for="suggest-dish-origin">Origin or food culture</label>
+              <input
+                id="suggest-dish-origin"
+                name="origin"
+                required
+                minlength="2"
+                maxlength="120"
+                placeholder="Country, region, or community"
+              />
+            </div>
+            <div class="field">
+              <label for="suggest-dish-ingredients">Main ingredients</label>
+              <textarea
+                id="suggest-dish-ingredients"
+                name="ingredients"
+                required
+                minlength="3"
+                maxlength="500"
+                rows="3"
+              ></textarea>
+            </div>
+            <div class="field">
+              <label for="suggest-dish-description"
+                >What should people know about it?</label
+              >
+              <textarea
+                id="suggest-dish-description"
+                name="description"
+                required
+                minlength="8"
+                maxlength="1000"
+                rows="5"
+                placeholder="Share its story, flavor, or why you recommend it."
+              ></textarea>
+            </div>
+            <button class="button button-dark feedback-submit" type="submit">
+              Send suggestion <span aria-hidden="true">→</span>
+            </button>
+          </form>
+          <p
+            id="dish-suggestion-status"
+            class="feedback-status"
+            role="status"
+            aria-live="polite"
+            hidden
+          ></p>
+        </div>
+      </section>
+      <section
+        id="dish-suggestion-admin"
+        class="feedback-comments suggestion-admin"
+        aria-labelledby="suggestion-admin-title"
+        hidden
+      >
+        <div class="feedback-comments-heading">
+          <div>
+            <p class="eyebrow"><span></span> Team review</p>
+            <h2 id="suggestion-admin-title">Dish suggestions</h2>
+          </div>
+        </div>
+        <p
+          id="suggestion-admin-status"
+          class="feedback-status"
+          role="status"
+          aria-live="polite"
+          hidden
+        ></p>
+        <p id="suggestion-admin-empty" class="feedback-empty" hidden>
+          No dish suggestions are waiting for review.
+        </p>
+        <ol id="dish-suggestion-list" class="feedback-list"></ol>
+      </section>
+    </main>
+    <footer class="site-footer">
+      <span>© Tahak sa Panlasa</span>
+      <span>Made with puso in the Philippines · shared with the world</span>
+      <nav aria-label="Footer links">
+        <a href="builders.html">Our Story</a>
+        <a href="contact.html">Feedback</a>
+        <a href="suggest.html" aria-current="page">Suggest a dish</a>
+        <a href="login.html">Login</a>
+      </nav>
+    </footer>
+    <button class="back-to-top" type="button" aria-label="Back to top"></button>
+    <script
+      src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+      defer
+    ></script>
+    <script src="Javascript/supabase-config.js" defer></script>
+    <script src="Javascript/music-config.js" defer></script>
+    <script src="Javascript/script.js" defer></script>
+  </body>
+</html>

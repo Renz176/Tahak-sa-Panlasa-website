@@ -22,7 +22,7 @@
   <div class="header-actions">
     <button class="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false">☰</button>
     <nav class="main-nav" aria-label="Main navigation">
-      <a href="index.html">Home</a><a href="dishes.html">Dishes</a><a href="builders.html">Our Story</a><a href="contact.html">Feedback</a>
+      <a href="index.html">Home</a><a href="dishes.html">Dishes</a><a href="builders.html">Our Story</a><a href="contact.html">Feedback</a><a href="suggest.html">Suggest a dish</a><a href="login.html">Login</a>
     </nav>
     <label class="home-search"><span aria-hidden="true">⌕</span><input type="search" id="site-search" placeholder="Search dishes…" aria-label="Search dishes" /></label>
     <button class="theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="false"><span class="theme-icon">☀️</span><span class="theme-label">Light</span></button>
@@ -38,7 +38,7 @@
           </h1>
           <p>
             Rate the website and leave a note for the team. Your comment will
-            appear below and stay saved in this browser.
+            appear below so other visitors can read it.
           </p>
           <div class="feedback-aside">
             <span aria-hidden="true">✳</span>
@@ -94,14 +94,14 @@
                 placeholder="Share what you think about the website…"
               ></textarea
               ><span class="field-hint"
-                >Your comment appears below in this browser. Please don’t include private information.</span
+                >Your comment will be visible to other visitors. Please don’t include private information.</span
               >
             </div>
           </div>
           <button class="button button-dark feedback-submit" type="submit">
             Post feedback <span aria-hidden="true">→</span>
           </button>
-          <p class="feedback-note">Feedback is saved in this browser and appears below. It is not shared with other visitors or devices.</p>
+          <p class="feedback-note">Feedback is shared with visitors on this website.</p>
           <p class="feedback-status" id="feedback-status" role="status" aria-live="polite" hidden></p>
         </form>
       </section>
@@ -126,8 +126,11 @@
     </main>
     <footer class="site-footer">
       <span>© Tahak sa Panlasa</span
-      ><span>Made with puso in the Philippines · shared with the world</span><nav aria-label="Footer links"><a href="builders.html">Our Story</a><a href="contact.html">Feedback</a></nav></footer>
+      ><span>Made with puso in the Philippines · shared with the world</span><nav aria-label="Footer links"><a href="builders.html">Our Story</a><a href="contact.html">Feedback</a><a href="suggest.html">Suggest a dish</a><a href="login.html">Login</a></nav></footer>
     <button class="back-to-top" type="button" aria-label="Back to top"></button>
-    <script src="Javascript/script.js" defer></script>
+      <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+      <script src="Javascript/supabase-config.js" defer></script>
+      <script src="Javascript/music-config.js" defer></script>
+      <script src="Javascript/script.js" defer></script>
   </body>
 </html>
