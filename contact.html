@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Share feedback and help Tahak sa Panlasa grow into a journey through food cultures around the world."
+    />
+    <title>Share feedback | Tahak sa Panlasa</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link href="css/style.css" rel="stylesheet" />
+  </head>
+  <body class="feedback-page">
+    <header class="site-header">
+  <div class="logo"><a class="site-brand" href="index.html"><img src="img/logo-small.png" alt="" width="48" height="48" /><span><strong>Tahak sa Panlasa</strong><small>Food · culture · stories</small></span></a></div>
+  <div class="header-actions">
+    <button class="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false">☰</button>
+    <nav class="main-nav" aria-label="Main navigation">
+      <a href="index.html">Home</a><a href="dishes.html">Dishes</a><a href="builders.html">Our Story</a><a href="contact.html">Feedback</a>
+    </nav>
+    <label class="home-search"><span aria-hidden="true">⌕</span><input type="search" id="site-search" placeholder="Search dishes…" aria-label="Search dishes" /></label>
+    <button class="theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="false"><span class="theme-icon">☀️</span><span class="theme-label">Light</span></button>
+    <a class="home-menu-link" href="contact.html" aria-label="Send feedback">✳</a>
+  </div>
+</header>
+    <main class="feedback-main">
+      <section class="feedback-hero" aria-labelledby="feedback-title">
+        <div class="feedback-intro">
+          <p class="eyebrow"><span></span> A note for our table</p>
+          <h1 id="feedback-title">
+            Help us make<br /><em>the journey better.</em>
+          </h1>
+          <p>
+            Rate the website and leave a note for the team. Your comment will
+            appear below and stay saved in this browser.
+          </p>
+          <div class="feedback-aside">
+            <span aria-hidden="true">✳</span>
+            <p>Every good table leaves room for another voice.</p>
+          </div>
+          <div class="feedback-contact">
+            <p class="feedback-contact-label">Prefer to contact us directly?</p>
+            <a href="mailto:tahaksapanlasa@gmail.com?subject=Tahak%20sa%20Panlasa%20inquiry">
+              Contact Us <span aria-hidden="true">→</span>
+            </a>
+            <p><a href="mailto:tahaksapanlasa@gmail.com">tahaksapanlasa@gmail.com</a></p>
+            <p><a href="tel:+639683044606">09683044606</a></p>
+          </div>
+        </div>
+        <form class="feedback-form" id="feedback-form">
+          <p class="feedback-form-kicker">Your thoughts</p>
+          <h2>Rate the website</h2>
+          <div class="feedback-fields">
+            <div class="field">
+              <label for="feedback-name">Name <span>(optional)</span></label
+              ><input
+                id="feedback-name"
+                name="name"
+                autocomplete="name"
+                maxlength="60"
+                placeholder="Your name"
+              />
+            </div>
+            <fieldset class="feedback-rating-field">
+              <legend>Rating</legend>
+              <div class="feedback-rating" role="radiogroup" aria-label="Rate the website from 1 to 5 stars">
+                <input type="radio" id="feedback-rating-5" name="rating" value="5" required />
+                <label for="feedback-rating-5" aria-label="5 out of 5 stars">★</label>
+                <input type="radio" id="feedback-rating-4" name="rating" value="4" />
+                <label for="feedback-rating-4" aria-label="4 out of 5 stars">★</label>
+                <input type="radio" id="feedback-rating-3" name="rating" value="3" />
+                <label for="feedback-rating-3" aria-label="3 out of 5 stars">★</label>
+                <input type="radio" id="feedback-rating-2" name="rating" value="2" />
+                <label for="feedback-rating-2" aria-label="2 out of 5 stars">★</label>
+                <input type="radio" id="feedback-rating-1" name="rating" value="1" />
+                <label for="feedback-rating-1" aria-label="1 out of 5 stars">★</label>
+              </div>
+              <span class="field-hint" id="feedback-rating-help">Choose 1 to 5 stars.</span>
+            </fieldset>
+            <div class="field">
+              <label for="feedback-message">Your comment</label
+              ><textarea
+                id="feedback-message"
+                name="message"
+                required
+                minlength="8"
+                maxlength="1000"
+                placeholder="Share what you think about the website…"
+              ></textarea
+              ><span class="field-hint"
+                >Your comment appears below in this browser. Please don’t include private information.</span
+              >
+            </div>
+          </div>
+          <button class="button button-dark feedback-submit" type="submit">
+            Post feedback <span aria-hidden="true">→</span>
+          </button>
+          <p class="feedback-note">Feedback is saved in this browser and appears below. It is not shared with other visitors or devices.</p>
+          <p class="feedback-status" id="feedback-status" role="status" aria-live="polite" hidden></p>
+        </form>
+      </section>
+      <section class="feedback-comments" aria-labelledby="feedback-comments-title">
+        <div class="feedback-comments-heading">
+          <div>
+            <p class="eyebrow"><span></span> The conversation</p>
+            <h2 id="feedback-comments-title">Visitor feedback</h2>
+          </div>
+          <p class="feedback-summary"><strong id="feedback-average">—</strong><span>average rating</span><small><span id="feedback-count">0</span> comments</small></p>
+        </div>
+        <p class="feedback-empty" id="feedback-empty">No comments yet. Be the first to leave a rating and share your thoughts.</p>
+        <ol class="feedback-list" id="feedback-list" aria-live="polite"></ol>
+      </section>
+      <section class="feedback-bottom">
+        <p class="eyebrow">Made with puso</p>
+        <p>Thanks for joining us on a journey through food and culture.</p>
+        <a href="index.html"
+          >Back to the table <span aria-hidden="true">→</span></a
+        >
+      </section>
+    </main>
+    <footer class="site-footer">
+      <span>© Tahak sa Panlasa</span
+      ><span>Made with puso in the Philippines · shared with the world</span><nav aria-label="Footer links"><a href="builders.html">Our Story</a><a href="contact.html">Feedback</a></nav></footer>
+    <button class="back-to-top" type="button" aria-label="Back to top"></button>
+    <script src="Javascript/script.js" defer></script>
+  </body>
+</html>
