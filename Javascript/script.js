@@ -504,6 +504,10 @@ function initLoginPage() {
   const adminBadge = document.querySelector("#account-admin-badge");
   const feedbackLink = document.querySelector("#account-feedback-link");
   const signOutButton = document.querySelector("#account-sign-out");
+  const forgotPasswordButton = document.querySelector(
+    "#account-forgot-password",
+  );
+  const resetForm = document.querySelector("#account-reset-form");
   const client = getTahakSupabaseClient();
   const buttons = form.querySelectorAll('button[type="submit"]');
 
@@ -525,9 +529,22 @@ function initLoginPage() {
   }
 
   let authCheck = 0;
+  let passwordRecovery = false;
+  const setRecoveryMode = (enabled) => {
+    passwordRecovery = enabled;
+    form.hidden = enabled;
+    resetForm.hidden = !enabled;
+    signedInPanel.hidden = enabled;
+    if (enabled) {
+      setStatus("Choose a new password for your account.");
+      document.querySelector("#account-new-password").focus();
+    }
+  };
+
   const updateSession = async (session) => {
     const currentCheck = ++authCheck;
     const user = session?.user;
+    if (passwordRecovery) return;
     form.hidden = Boolean(session);
     signedInPanel.hidden = !session;
     if (!session) {
@@ -562,7 +579,11 @@ function initLoginPage() {
     }
   };
 
-  client.auth.onAuthStateChange((_event, session) => {
+  client.auth.onAuthStateChange((event, session) => {
+    if (event === "PASSWORD_RECOVERY") {
+      setRecoveryMode(true);
+      return;
+    }
     window.setTimeout(() => void updateSession(session), 0);
   });
   void client.auth
@@ -578,6 +599,64 @@ function initLoginPage() {
         true,
       );
     });
+
+  forgotPasswordButton.addEventListener("click", async () => {
+    const emailInput = form.elements.email;
+    const email = emailInput.value.trim();
+    if (!emailInput.reportValidity()) return;
+
+    forgotPasswordButton.disabled = true;
+    try {
+      const redirectTo = new URL("login.html", window.location.href).toString();
+      const { error } = await client.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      });
+      if (error) throw error;
+      setStatus(
+        "If an account exists for that email, password reset instructions will be sent.",
+      );
+    } catch (error) {
+      console.error("Password reset request failed.", error);
+      setStatus(error.message || "Unable to request a password reset.", true);
+    } finally {
+      forgotPasswordButton.disabled = false;
+    }
+  });
+
+  resetForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(resetForm);
+    const password = String(data.get("new-password") || "");
+    const confirmation = String(data.get("confirm-password") || "");
+    if (password.length < 8 || password !== confirmation) {
+      setStatus(
+        password !== confirmation
+          ? "The passwords do not match."
+          : "Your password must have at least 8 characters.",
+        true,
+      );
+      return;
+    }
+
+    const submitButton = resetForm.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    try {
+      const { error } = await client.auth.updateUser({ password });
+      if (error) throw error;
+      resetForm.reset();
+      setRecoveryMode(false);
+      const { data: sessionData, error: sessionError } =
+        await client.auth.getSession();
+      if (sessionError) throw sessionError;
+      await updateSession(sessionData.session);
+      setStatus("Your password has been updated.");
+    } catch (error) {
+      console.error("Password update failed.", error);
+      setStatus(error.message || "Unable to update your password.", true);
+    } finally {
+      submitButton.disabled = false;
+    }
+  });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();

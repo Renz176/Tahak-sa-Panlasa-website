@@ -2,46 +2,25 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
       content="Sign in or create an optional Tahak sa Panlasa account."
     />
     <title>Login | Tahak sa Panlasa</title>
-    <link
-      rel="preconnect"
-      href="https://fonts.googleapis.com"
-    />
-    <link
-      rel="preconnect"
-      href="https://fonts.gstatic.com"
-      crossorigin
-    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link
-      href="css/style.css"
-      rel="stylesheet"
-    />
+    <link href="css/style.css" rel="stylesheet" />
   </head>
   <body class="feedback-page login-page">
     <header class="site-header">
       <div class="logo">
-        <a
-          class="site-brand"
-          href="index.html"
-        >
-          <img
-            src="img/logo-small.png"
-            alt=""
-            width="48"
-            height="48"
-          />
+        <a class="site-brand" href="index.html">
+          <img src="img/logo-small.png" alt="" width="48" height="48" />
           <span
             ><strong>Tahak sa Panlasa</strong
             ><small>Food · culture · stories</small></span
@@ -57,21 +36,13 @@
         >
           ☰
         </button>
-        <nav
-          class="main-nav"
-          aria-label="Main navigation"
-        >
+        <nav class="main-nav" aria-label="Main navigation">
           <a href="index.html">Home</a>
           <a href="dishes.html">Dishes</a>
           <a href="builders.html">Our Story</a>
           <a href="contact.html">Feedback</a>
           <a href="suggest.html">Suggest a dish</a>
-          <a
-            class="active"
-            href="login.html"
-            aria-current="page"
-            >Login</a
-          >
+          <a class="active" href="login.html" aria-current="page">Login</a>
         </nav>
         <label class="home-search">
           <span aria-hidden="true">⌕</span>
@@ -94,10 +65,7 @@
       </div>
     </header>
     <main class="feedback-main">
-      <section
-        class="login-page-main"
-        aria-labelledby="account-title"
-      >
+      <section class="login-page-main" aria-labelledby="account-title">
         <div class="feedback-account login-account">
           <p class="feedback-form-kicker">Optional account</p>
           <h1 id="account-title">Welcome to our table.</h1>
@@ -107,10 +75,7 @@
             Administrator access for feedback and dish suggestions is granted
             separately by the site owner.
           </p>
-          <form
-            id="account-form"
-            class="feedback-auth-form"
-          >
+          <form id="account-form" class="feedback-auth-form">
             <div class="field">
               <label for="account-email">Email</label>
               <input
@@ -150,18 +115,51 @@
               >
                 Create account
               </button>
+              <button
+                id="account-forgot-password"
+                class="account-forgot-password"
+                type="button"
+              >
+                Forgot password?
+              </button>
             </div>
           </form>
-          <div
-            id="account-signed-in"
-            class="feedback-signed-in"
+          <form
+            id="account-reset-form"
+            class="feedback-auth-form account-reset-form"
             hidden
           >
+            <div class="field">
+              <label for="account-new-password">New password</label>
+              <input
+                id="account-new-password"
+                name="new-password"
+                type="password"
+                autocomplete="new-password"
+                required
+                minlength="8"
+              />
+            </div>
+            <div class="field">
+              <label for="account-confirm-password">Confirm new password</label>
+              <input
+                id="account-confirm-password"
+                name="confirm-password"
+                type="password"
+                autocomplete="new-password"
+                required
+                minlength="8"
+              />
+            </div>
+            <div class="feedback-auth-actions">
+              <button class="button button-dark" type="submit">
+                Update password
+              </button>
+            </div>
+          </form>
+          <div id="account-signed-in" class="feedback-signed-in" hidden>
             <p id="account-signed-in-label"></p>
-            <span
-              id="account-admin-badge"
-              class="feedback-admin-badge"
-              hidden
+            <span id="account-admin-badge" class="feedback-admin-badge" hidden
               >Site administrator</span
             >
             <button
@@ -195,33 +193,16 @@
         <a href="builders.html">Our Story</a>
         <a href="contact.html">Feedback</a>
         <a href="suggest.html">Suggest a dish</a>
-        <a
-          href="login.html"
-          aria-current="page"
-          >Login</a
-        >
+        <a href="login.html" aria-current="page">Login</a>
       </nav>
     </footer>
-    <button
-      class="back-to-top"
-      type="button"
-      aria-label="Back to top"
-    ></button>
+    <button class="back-to-top" type="button" aria-label="Back to top"></button>
     <script
       src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
       defer
     ></script>
-    <script
-      src="Javascript/supabase-config.js"
-      defer
-    ></script>
-    <script
-      src="Javascript/music-config.js"
-      defer
-    ></script>
-    <script
-      src="Javascript/script.js"
-      defer
-    ></script>
+    <script src="Javascript/supabase-config.js" defer></script>
+    <script src="Javascript/music-config.js" defer></script>
+    <script src="Javascript/script.js" defer></script>
   </body>
 </html>

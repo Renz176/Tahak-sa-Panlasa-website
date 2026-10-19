@@ -17,8 +17,11 @@ Never put a service_role key or secret key in this website.
 
 3. Enable email/password sign-in in Authentication > Providers. Configure
    the deployed HTTPS website as the Site URL and add it to the allowed
-   redirect URLs. If email confirmation is enabled, visitors must confirm
-   their address before signing in.
+   redirect URLs, including
+   https://renz176.github.io/Tahak-sa-Panlasa-website/login.html. If email
+   confirmation is enabled, visitors must confirm their address before
+   signing in. Password recovery returns to this login page so users can set
+   a new password.
 
 4. To grant administrator access, create an account using Login, then copy
    its user UUID from Authentication > Users. Run the following in SQL
