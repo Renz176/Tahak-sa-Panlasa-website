@@ -60,24 +60,69 @@ document.addEventListener("DOMContentLoaded", bindThemeToggle);
 
 function initSharedHeader() {
   const menuToggle = document.querySelector(".menu-toggle");
+  const headerActions = menuToggle?.parentElement;
   const nav = document.querySelector(".main-nav");
-  if (menuToggle && nav && menuToggle.dataset.navBound !== "true") {
+  if (
+    menuToggle &&
+    headerActions &&
+    nav &&
+    menuToggle.dataset.navBound !== "true"
+  ) {
     menuToggle.dataset.navBound = "true";
-    menuToggle.addEventListener("click", () => {
-      const isOpen = nav.classList.toggle("open");
+    const panel = document.createElement("div");
+    panel.className = "header-menu-panel";
+    panel.id = "site-header-menu";
+    panel.setAttribute("role", "region");
+    panel.setAttribute("aria-label", "Site menu");
+    panel.setAttribute("aria-hidden", "true");
+    panel.inert = true;
+    panel.append(nav);
+    headerActions.append(panel);
+    menuToggle.setAttribute("aria-controls", panel.id);
+
+    const setMenuOpen = (isOpen) => {
+      panel.classList.toggle("open", isOpen);
+      panel.inert = !isOpen;
+      panel.setAttribute("aria-hidden", String(!isOpen));
       menuToggle.setAttribute("aria-expanded", String(isOpen));
-      menuToggle.setAttribute("aria-label", isOpen ? "Close navigation" : "Open navigation");
+      menuToggle.setAttribute(
+        "aria-label",
+        isOpen ? "Close site menu" : "Open site menu",
+      );
+      menuToggle.textContent = isOpen ? "×" : "☰";
+    };
+
+    setMenuOpen(false);
+    menuToggle.addEventListener("click", () => {
+      setMenuOpen(!panel.classList.contains("open"));
     });
-    nav.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => {
-      nav.classList.remove("open");
-      menuToggle.setAttribute("aria-expanded", "false");
-    }));
+    panel
+      .querySelectorAll("a")
+      .forEach((link) =>
+        link.addEventListener("click", () => setMenuOpen(false)),
+      );
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && panel.classList.contains("open")) {
+        setMenuOpen(false);
+        menuToggle.focus();
+      }
+    });
+    document.addEventListener("click", (event) => {
+      if (
+        panel.classList.contains("open") &&
+        event.target instanceof Node &&
+        !headerActions.contains(event.target)
+      ) {
+        setMenuOpen(false);
+      }
+    });
   }
 
   const currentPage = window.location.pathname.split("/").pop() || "index.html";
   document.querySelectorAll(".main-nav a").forEach((link) => {
     const target = new URL(link.href, window.location.href);
-    const isCurrent = target.pathname.split("/").pop() === currentPage && !target.hash;
+    const isCurrent =
+      target.pathname.split("/").pop() === currentPage && !target.hash;
     link.classList.toggle("active", isCurrent);
     if (isCurrent) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
@@ -87,7 +132,9 @@ function initSharedHeader() {
   const dishSearch = document.querySelector("#dish-search");
   if (siteSearch) {
     if (dishSearch) {
-      const initialSearch = new URLSearchParams(window.location.search).get("search");
+      const initialSearch = new URLSearchParams(window.location.search).get(
+        "search",
+      );
       if (initialSearch) {
         siteSearch.value = initialSearch;
         dishSearch.value = initialSearch;
@@ -101,7 +148,9 @@ function initSharedHeader() {
       if (event.key !== "Enter") return;
       event.preventDefault();
       if (dishSearch) {
-        document.querySelector("#dishes")?.scrollIntoView({ behavior: "smooth" });
+        document
+          .querySelector("#dishes")
+          ?.scrollIntoView({ behavior: "smooth" });
         dishSearch.focus({ preventScroll: true });
       } else {
         const query = siteSearch.value.trim();
@@ -110,7 +159,10 @@ function initSharedHeader() {
     });
   }
 }
-if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initSharedHeader, { once: true });
+if (document.readyState === "loading")
+  document.addEventListener("DOMContentLoaded", initSharedHeader, {
+    once: true,
+  });
 else initSharedHeader();
 
 function initBackToTop() {
@@ -140,7 +192,39 @@ function initBackToTop() {
 initBackToTop();
 document.addEventListener("DOMContentLoaded", initBackToTop);
 
-const FEEDBACK_REFRESH_INTERVAL = 30_000;
+let tahakSupabaseClient;
+
+function getTahakSupabaseClient() {
+  if (tahakSupabaseClient) return tahakSupabaseClient;
+  const config = window.TAHAK_SUPABASE_CONFIG;
+  const url = config?.url?.trim() || "";
+  const anonKey = config?.anonKey?.trim() || "";
+  let validUrl = false;
+
+  try {
+    const parsedUrl = new URL(url);
+    validUrl =
+      parsedUrl.protocol === "https:" ||
+      (parsedUrl.protocol === "http:" &&
+        ["localhost", "127.0.0.1"].includes(parsedUrl.hostname));
+  } catch {
+    validUrl = false;
+  }
+
+  if (!validUrl || !anonKey || !window.supabase?.createClient) return null;
+  tahakSupabaseClient = window.supabase.createClient(url, anonKey);
+  return tahakSupabaseClient;
+}
+
+async function isSupabaseAdmin(client, userId) {
+  const { data, error } = await client
+    .from("website_admins")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
+}
 
 function initWebsiteFeedback() {
   const form = document.querySelector("#feedback-form");
@@ -152,10 +236,10 @@ function initWebsiteFeedback() {
   const average = document.querySelector("#feedback-average");
   const count = document.querySelector("#feedback-count");
   const emptyState = document.querySelector("#feedback-empty");
-  const config = window.TAHAK_SUPABASE_CONFIG;
-  let supabaseClient;
+  const client = getTahakSupabaseClient();
   let isAdmin = false;
   let feedbackEntries = [];
+  let feedbackChannel;
 
   const setStatus = (message, isError = false) => {
     status.textContent = message;
@@ -165,22 +249,6 @@ function initWebsiteFeedback() {
 
   const setSubmitEnabled = (enabled) => {
     submitButton.disabled = !enabled;
-  };
-
-  const isValidConfig = () => {
-    if (!config || typeof config.url !== "string" || typeof config.anonKey !== "string") {
-      return false;
-    }
-    try {
-      const url = new URL(config.url.trim());
-      return (
-        Boolean(config.anonKey.trim()) &&
-        (url.protocol === "https:" ||
-          (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname)))
-      );
-    } catch {
-      return false;
-    }
   };
 
   const isValidEntry = (entry) =>
@@ -196,46 +264,6 @@ function initWebsiteFeedback() {
     entry.rating <= 5 &&
     typeof entry.createdAt === "string" &&
     Number.isFinite(Date.parse(entry.createdAt));
-
-  const mapDatabaseEntry = (entry) => ({
-    id: entry.id,
-    name: entry.name,
-    message: entry.message,
-    rating: entry.rating,
-    createdAt: entry.created_at,
-  });
-
-  const checkAdmin = async (user) => {
-    if (!user) {
-      isAdmin = false;
-      return false;
-    }
-    const { data, error } = await supabaseClient
-      .from("website_admins")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (error) throw error;
-    isAdmin = Boolean(data);
-    return isAdmin;
-  };
-
-  const updateAccountPanel = async (session) => {
-    if (!session) {
-      isAdmin = false;
-      renderEntries();
-      return;
-    }
-
-    try {
-      await checkAdmin(session.user);
-      renderEntries();
-    } catch (error) {
-      console.error("Unable to verify feedback administrator access.", error);
-      isAdmin = false;
-      renderEntries();
-    }
-  };
 
   const renderEntries = () => {
     list.replaceChildren();
@@ -286,49 +314,74 @@ function initWebsiteFeedback() {
   };
 
   const loadEntries = async () => {
-    try {
-      const { data, error } = await supabaseClient
-        .from("website_feedback")
-        .select("id,name,message,rating,created_at")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      if (!Array.isArray(data)) {
-        throw new TypeError("Shared feedback response has an invalid format.");
-      }
-
-      feedbackEntries = data
-        .map(mapDatabaseEntry)
-        .filter(isValidEntry)
-        .slice(0, 100);
-      renderEntries();
-      if (status.classList.contains("is-error")) setStatus("");
-      return true;
-    } catch (error) {
-      console.error("Unable to load shared website feedback.", error);
-      setStatus(
-        "Shared feedback could not be loaded. Check the internet connection and Supabase setup, then reload this page.",
-        true,
-      );
-      return false;
-    }
+    const { data, error } = await client
+      .from("website_feedback")
+      .select("id, name, message, rating, created_at")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    feedbackEntries = data
+      .map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        message: entry.message,
+        rating: entry.rating,
+        createdAt: entry.created_at,
+      }))
+      .filter(isValidEntry);
+    renderEntries();
+    if (status.classList.contains("is-error")) setStatus("");
   };
 
-  if (!isValidConfig() || !window.supabase?.createClient) {
+  if (!client) {
     renderEntries();
     setSubmitEnabled(false);
     setStatus(
-      "Feedback and accounts are unavailable. Check the Supabase URL, public anon key, and internet connection.",
+      "Live feedback is unavailable. Configure the Supabase URL and public anon key.",
       true,
     );
     return;
   }
 
-  supabaseClient = window.supabase.createClient(config.url.trim(), config.anonKey.trim());
+  try {
+    void loadEntries().catch((error) => {
+      console.error("Unable to load live website feedback.", error);
+      setStatus(
+        "Live feedback could not be loaded. Check the connection and Supabase policies.",
+        true,
+      );
+    });
+    feedbackChannel = client
+      .channel("website-feedback")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "website_feedback",
+        },
+        () => {
+          void loadEntries().catch((error) => {
+            console.error("Unable to refresh live website feedback.", error);
+            setStatus("Live feedback could not be refreshed.", true);
+          });
+        },
+      )
+      .subscribe();
+  } catch (error) {
+    console.error("Unable to initialize Supabase website feedback.", error);
+    renderEntries();
+    setSubmitEnabled(false);
+    setStatus(
+      "Live feedback could not connect to Supabase. Check its configuration.",
+      true,
+    );
+    return;
+  }
+
   setSubmitEnabled(true);
   renderEntries();
   loadEntries();
-  window.setInterval(loadEntries, FEEDBACK_REFRESH_INTERVAL);
 
   list.addEventListener("click", async (event) => {
     if (!(event.target instanceof Element)) return;
@@ -337,45 +390,67 @@ function initWebsiteFeedback() {
 
     removeButton.disabled = true;
     try {
-      const { data, error } = await supabaseClient
+      const { error } = await client
         .from("website_feedback")
         .delete()
-        .eq("id", removeButton.dataset.deleteFeedback)
-        .select("id");
+        .eq("id", removeButton.dataset.deleteFeedback);
       if (error) throw error;
-      const [deletedEntry] = Array.isArray(data) ? data : [];
-      if (!deletedEntry) {
-        throw new Error("Feedback was not removed. Confirm administrator access and try again.");
-      }
-      feedbackEntries = feedbackEntries.filter((entry) => entry.id !== deletedEntry.id);
-      renderEntries();
       setStatus("Feedback removed.");
     } catch (error) {
-      console.error("Unable to remove shared website feedback.", error);
+      console.error("Unable to remove live website feedback.", error);
       setStatus(error.message || "Unable to remove feedback.", true);
       removeButton.disabled = false;
     }
   });
 
-  supabaseClient.auth.onAuthStateChange((_event, session) => {
-    window.setTimeout(() => {
-      updateAccountPanel(session);
-    }, 0);
-  });
-  supabaseClient.auth.getSession().then(({ data, error }) => {
-    if (error) {
-      console.error("Unable to restore the feedback account session.", error);
+  let authCheck = 0;
+  const updateAdmin = async (user) => {
+    const currentCheck = ++authCheck;
+    isAdmin = false;
+    if (!user) {
+      renderEntries();
       return;
     }
-    updateAccountPanel(data.session);
+    try {
+      isAdmin = await isSupabaseAdmin(client, user.id);
+      if (currentCheck !== authCheck) return;
+      renderEntries();
+    } catch (error) {
+      if (currentCheck !== authCheck) return;
+      console.error(
+        "Unable to verify Supabase feedback administrator access.",
+        error,
+      );
+      renderEntries();
+      setStatus(
+        "Administrator access could not be verified. Check Supabase policies.",
+        true,
+      );
+    }
+  };
+
+  client.auth.onAuthStateChange((_event, session) => {
+    window.setTimeout(() => void updateAdmin(session?.user), 0);
   });
+  void client.auth
+    .getSession()
+    .then(({ data, error }) => {
+      if (error) throw error;
+      return updateAdmin(data.session?.user);
+    })
+    .catch((error) => {
+      console.error("Unable to restore the Supabase feedback session.", error);
+      setStatus("Unable to check feedback administrator access.", true);
+    });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (submitButton.disabled) return;
 
     const data = new FormData(form);
-    const name = String(data.get("name") || "").trim().slice(0, 60);
+    const name = String(data.get("name") || "")
+      .trim()
+      .slice(0, 60);
     const message = String(data.get("message") || "").trim();
     const rating = Number(data.get("rating"));
 
@@ -390,33 +465,31 @@ function initWebsiteFeedback() {
 
     setSubmitEnabled(false);
     try {
-      const { data, error } = await supabaseClient
+      const { error } = await client
         .from("website_feedback")
-        .insert({ name, message, rating })
-        .select("id,name,message,rating,created_at")
-        .single();
+        .insert({ name, message, rating });
       if (error) throw error;
-      const entry = data && mapDatabaseEntry(data);
-      if (!entry || !isValidEntry(entry)) {
-        throw new TypeError("Supabase returned an invalid saved feedback entry.");
-      }
-
-      feedbackEntries = [entry, ...feedbackEntries]
-        .filter(isValidEntry)
-        .slice(0, 100);
-      renderEntries();
       form.reset();
-      setStatus("Thanks! Your feedback is shared with visitors on this website.");
+      setStatus("Thanks! Your feedback is live for visitors on this website.");
     } catch (error) {
-      console.error("Unable to post shared website feedback.", error);
+      console.error("Unable to post live website feedback.", error);
       setStatus(
-        "Your feedback could not be shared. Check the internet connection and Supabase setup, then try again.",
+        "Your feedback could not be posted. Check the internet connection " +
+          "and Supabase policies, then try again.",
         true,
       );
     } finally {
       setSubmitEnabled(true);
     }
   });
+
+  window.addEventListener(
+    "pagehide",
+    () => {
+      if (feedbackChannel) void client.removeChannel(feedbackChannel);
+    },
+    { once: true },
+  );
 }
 
 initWebsiteFeedback();
@@ -431,7 +504,7 @@ function initLoginPage() {
   const adminBadge = document.querySelector("#account-admin-badge");
   const feedbackLink = document.querySelector("#account-feedback-link");
   const signOutButton = document.querySelector("#account-sign-out");
-  const config = window.TAHAK_SUPABASE_CONFIG;
+  const client = getTahakSupabaseClient();
   const buttons = form.querySelectorAll('button[type="submit"]');
 
   const setStatus = (message, isError = false) => {
@@ -440,9 +513,21 @@ function initLoginPage() {
     status.hidden = !message;
   };
 
-  let supabaseClient;
+  if (!client) {
+    buttons.forEach((button) => {
+      button.disabled = true;
+    });
+    setStatus(
+      "Accounts are unavailable. Configure the Supabase URL and public anon key.",
+      true,
+    );
+    return;
+  }
 
+  let authCheck = 0;
   const updateSession = async (session) => {
+    const currentCheck = ++authCheck;
+    const user = session?.user;
     form.hidden = Boolean(session);
     signedInPanel.hidden = !session;
     if (!session) {
@@ -450,68 +535,49 @@ function initLoginPage() {
       return;
     }
 
-    signedInLabel.textContent = `Signed in as ${session.user.email || "account"}`;
+    signedInLabel.textContent = `Signed in as ${user.email || "account"}`;
     try {
-      const { data, error } = await supabaseClient
-        .from("website_admins")
-        .select("user_id")
-        .eq("user_id", session.user.id)
-        .maybeSingle();
-      if (error) throw error;
-      if (adminBadge) adminBadge.hidden = !data;
+      const isAdmin = await isSupabaseAdmin(client, user.id);
+      if (currentCheck !== authCheck) return;
+      if (adminBadge) adminBadge.hidden = !isAdmin;
       if (feedbackLink) {
-        feedbackLink.textContent = data ? "Moderate feedback" : "View feedback";
+        feedbackLink.href = isAdmin ? "suggest.html" : "contact.html";
+        feedbackLink.textContent = isAdmin
+          ? "Review suggestions"
+          : "View feedback";
       }
       setStatus(
-        data
-          ? "Administrator access is active. You can moderate feedback on the Feedback page."
-          : "You are signed in. Administrator permissions are granted by the site owner.",
+        isAdmin
+          ? "Administrator access is active for feedback and dish suggestions."
+          : "You are signed in. You can submit dish suggestions for review.",
       );
     } catch (error) {
-      console.error("Unable to verify account administrator status.", error);
+      if (currentCheck !== authCheck) return;
+      console.error("Unable to verify Supabase administrator access.", error);
       if (adminBadge) adminBadge.hidden = true;
-      setStatus("Signed in, but administrator permissions could not be verified.", true);
+      setStatus(
+        "Signed in, but administrator access could not be verified.",
+        true,
+      );
     }
   };
 
-  let validUrl = false;
-  try {
-    const url = new URL(config?.url?.trim() || "");
-    validUrl =
-      url.protocol === "https:" ||
-      (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname));
-  } catch {
-    validUrl = false;
-  }
-
-  if (
-    !validUrl ||
-    typeof config?.anonKey !== "string" ||
-    !config.anonKey.trim() ||
-    !window.supabase?.createClient
-  ) {
-    buttons.forEach((button) => {
-      button.disabled = true;
+  client.auth.onAuthStateChange((_event, session) => {
+    window.setTimeout(() => void updateSession(session), 0);
+  });
+  void client.auth
+    .getSession()
+    .then(({ data, error }) => {
+      if (error) throw error;
+      return updateSession(data.session);
+    })
+    .catch((error) => {
+      console.error("Unable to restore the Supabase account session.", error);
+      setStatus(
+        "Unable to restore your account session. Please sign in again.",
+        true,
+      );
     });
-    setStatus(
-      "Accounts are unavailable. Configure the Supabase URL and public anon key before signing in.",
-      true,
-    );
-    return;
-  }
-
-  supabaseClient = window.supabase.createClient(config.url.trim(), config.anonKey.trim());
-  supabaseClient.auth.onAuthStateChange((_event, session) => {
-    window.setTimeout(() => updateSession(session), 0);
-  });
-  supabaseClient.auth.getSession().then(({ data, error }) => {
-    if (error) {
-      console.error("Unable to restore the account session.", error);
-      setStatus("Unable to restore your account session. Please sign in again.", true);
-      return;
-    }
-    updateSession(data.session);
-  });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -520,7 +586,10 @@ function initLoginPage() {
     const email = String(data.get("email") || "").trim();
     const password = String(data.get("password") || "");
     if (!email || password.length < 8) {
-      setStatus("Enter your email and a password with at least 8 characters.", true);
+      setStatus(
+        "Enter your email and a password with at least 8 characters.",
+        true,
+      );
       return;
     }
 
@@ -529,28 +598,32 @@ function initLoginPage() {
     });
     try {
       if (action === "signup") {
-        const { data: signupData, error } = await supabaseClient.auth.signUp({
+        const { data, error } = await client.auth.signUp({ email, password });
+        if (error) throw error;
+        if (data.session) {
+          form.reset();
+          await updateSession(data.session);
+          setStatus("Your account was created and you are signed in.");
+        } else {
+          setStatus(
+            "Your account was created. Check your email to confirm it, then sign in.",
+          );
+        }
+      } else if (action === "signin") {
+        const { data, error } = await client.auth.signInWithPassword({
           email,
           password,
         });
         if (error) throw error;
-        if (signupData.session) {
-          form.reset();
-          await updateSession(signupData.session);
-          setStatus("Your account was created and you are signed in.");
-        } else {
-          setStatus("Your account was created. Check your email to confirm it, then sign in.");
-        }
-      } else if (action === "signin") {
-        const { data: loginData, error } =
-          await supabaseClient.auth.signInWithPassword({ email, password });
-        if (error) throw error;
         form.reset();
-        await updateSession(loginData.session);
+        await updateSession(data.session);
       }
     } catch (error) {
       console.error("Account sign-in or sign-up failed.", error);
-      setStatus(error.message || "Unable to complete the account request.", true);
+      setStatus(
+        error.message || "Unable to complete the account request.",
+        true,
+      );
     } finally {
       buttons.forEach((button) => {
         button.disabled = false;
@@ -561,9 +634,8 @@ function initLoginPage() {
   signOutButton.addEventListener("click", async () => {
     signOutButton.disabled = true;
     try {
-      const { error } = await supabaseClient.auth.signOut();
+      const { error } = await client.auth.signOut();
       if (error) throw error;
-      await updateSession(null);
       setStatus("You have signed out.");
     } catch (error) {
       console.error("Unable to sign out.", error);
@@ -586,10 +658,11 @@ function initDishSuggestions() {
   const adminStatus = document.querySelector("#suggestion-admin-status");
   const adminEmpty = document.querySelector("#suggestion-admin-empty");
   const adminList = document.querySelector("#dish-suggestion-list");
-  const config = window.TAHAK_SUPABASE_CONFIG;
-  let supabaseClient;
+  const client = getTahakSupabaseClient();
   let isAdmin = false;
   let suggestions = [];
+  let suggestionChannel;
+  let authCheck = 0;
 
   const setStatus = (target, message, isError = false) => {
     target.textContent = message;
@@ -605,14 +678,16 @@ function initDishSuggestions() {
       const heading = document.createElement("div");
       heading.className = "feedback-entry-heading";
       const name = document.createElement("strong");
-      name.textContent = suggestion.dish_name;
+      name.textContent = suggestion.dishName;
       const statusBadge = document.createElement("span");
       statusBadge.className = "feedback-admin-badge";
       statusBadge.textContent =
-        suggestion.status === "approved" ? "Approved for catalog" : "Awaiting review";
+        suggestion.status === "approved"
+          ? "Approved for catalog"
+          : "Awaiting review";
       const date = document.createElement("time");
-      date.dateTime = suggestion.submitted_at;
-      date.textContent = new Date(suggestion.submitted_at).toLocaleDateString();
+      date.dateTime = suggestion.submittedAt;
+      date.textContent = new Date(suggestion.submittedAt).toLocaleDateString();
       heading.append(name, statusBadge, date);
 
       const origin = document.createElement("p");
@@ -647,63 +722,95 @@ function initDishSuggestions() {
   };
 
   const loadAdminSuggestions = async () => {
-    const { data, error } = await supabaseClient
+    const { data, error } = await client
       .from("dish_suggestions")
-      .select("id,dish_name,origin,ingredients,description,status,submitted_at")
+      .select(
+        "id, dish_name, origin, ingredients, description, status, submitted_at",
+      )
       .order("submitted_at", { ascending: false })
       .limit(100);
     if (error) throw error;
-    if (!Array.isArray(data)) throw new TypeError("Invalid dish suggestion response.");
-    suggestions = data;
+    suggestions = data.map((suggestion) => ({
+      id: suggestion.id,
+      dishName: suggestion.dish_name,
+      origin: suggestion.origin,
+      ingredients: suggestion.ingredients,
+      description: suggestion.description,
+      status: suggestion.status,
+      submittedAt: suggestion.submitted_at,
+    }));
     renderSuggestions();
+    setStatus(
+      adminStatus,
+      "Approved suggestions are marked for the team to verify and add to " +
+        "Javascript/script.js.",
+    );
   };
 
   const updateAdminView = async (session) => {
+    const currentCheck = ++authCheck;
+    if (suggestionChannel) {
+      void client.removeChannel(suggestionChannel);
+      suggestionChannel = undefined;
+    }
     isAdmin = false;
+    suggestions = [];
+    renderSuggestions();
     adminSection.hidden = true;
-    if (!session) return;
+    const user = session?.user;
+    if (!user) return;
     try {
-      const { data, error } = await supabaseClient
-        .from("website_admins")
-        .select("user_id")
-        .eq("user_id", session.user.id)
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) return;
+      const hasAdminAccess = await isSupabaseAdmin(client, user.id);
+      if (currentCheck !== authCheck) return;
+      if (!hasAdminAccess) return;
       isAdmin = true;
       adminSection.hidden = false;
       await loadAdminSuggestions();
+      if (currentCheck !== authCheck) return;
+      suggestionChannel = client
+        .channel("dish-suggestions")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "dish_suggestions",
+          },
+          () => {
+            void loadAdminSuggestions().catch((error) => {
+              console.error(
+                "Unable to refresh administrator dish suggestions.",
+                error,
+              );
+              setStatus(adminStatus, "Unable to refresh suggestions.", true);
+            });
+          },
+        )
+        .subscribe();
+    } catch (error) {
+      if (currentCheck !== authCheck) return;
+      console.error(
+        "Unable to load Supabase administrator dish suggestions.",
+        error,
+      );
       setStatus(
         adminStatus,
-        "Approved suggestions are marked for the team to verify and add to Javascript/script.js.",
+        "Unable to verify administrator access. Check Supabase configuration and policies.",
+        true,
       );
-    } catch (error) {
-      console.error("Unable to load administrator dish suggestions.", error);
-      setStatus(adminStatus, "Unable to load suggestions. Check administrator setup.", true);
     }
   };
 
-  let validUrl = false;
-  try {
-    const url = new URL(config?.url?.trim() || "");
-    validUrl =
-      url.protocol === "https:" ||
-      (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname));
-  } catch {
-    validUrl = false;
-  }
-
-  if (!validUrl || !config?.anonKey?.trim() || !window.supabase?.createClient) {
+  if (!client) {
     submitButton.disabled = true;
     setStatus(
       status,
-      "Suggestions are unavailable until Supabase is configured and this website is online.",
+      "Suggestions are unavailable until the Supabase URL and public anon key are configured.",
       true,
     );
     return;
   }
 
-  supabaseClient = window.supabase.createClient(config.url.trim(), config.anonKey.trim());
   submitButton.disabled = false;
 
   form.addEventListener("submit", async (event) => {
@@ -711,14 +818,14 @@ function initDishSuggestions() {
     if (submitButton.disabled) return;
     const data = new FormData(form);
     const suggestion = {
-      dish_name: String(data.get("dishName") || "").trim(),
+      dishName: String(data.get("dishName") || "").trim(),
       origin: String(data.get("origin") || "").trim(),
       ingredients: String(data.get("ingredients") || "").trim(),
       description: String(data.get("description") || "").trim(),
     };
     if (
-      suggestion.dish_name.length < 2 ||
-      suggestion.dish_name.length > 100 ||
+      suggestion.dishName.length < 2 ||
+      suggestion.dishName.length > 100 ||
       suggestion.origin.length < 2 ||
       suggestion.origin.length > 120 ||
       suggestion.ingredients.length < 3 ||
@@ -726,21 +833,36 @@ function initDishSuggestions() {
       suggestion.description.length < 8 ||
       suggestion.description.length > 1000
     ) {
-      setStatus(status, "Please complete each field within its stated length.", true);
+      setStatus(
+        status,
+        "Please complete each field within its stated length.",
+        true,
+      );
       return;
     }
 
     submitButton.disabled = true;
     try {
-      const { error } = await supabaseClient
-        .from("dish_suggestions")
-        .insert(suggestion);
+      const { error } = await client.from("dish_suggestions").insert({
+        dish_name: suggestion.dishName,
+        origin: suggestion.origin,
+        ingredients: suggestion.ingredients,
+        description: suggestion.description,
+        status: "pending",
+      });
       if (error) throw error;
       form.reset();
-      setStatus(status, "Thank you! Your dish suggestion was sent to the team for review.");
+      setStatus(
+        status,
+        "Thank you! Your dish suggestion was sent to the team for review.",
+      );
     } catch (error) {
       console.error("Unable to submit dish suggestion.", error);
-      setStatus(status, "Your suggestion could not be sent. Check your connection and try again.", true);
+      setStatus(
+        status,
+        "Your suggestion could not be sent. Check your connection and try again.",
+        true,
+      );
     } finally {
       submitButton.disabled = false;
     }
@@ -755,48 +877,50 @@ function initDishSuggestions() {
     target.disabled = true;
     try {
       if (approveButton) {
-        const { data, error } = await supabaseClient
+        const { error } = await client
           .from("dish_suggestions")
           .update({ status: "approved" })
-          .eq("id", approveButton.dataset.reviewSuggestion)
-          .select("id,status")
-          .maybeSingle();
+          .eq("id", approveButton.dataset.reviewSuggestion);
         if (error) throw error;
-        if (!data) throw new Error("Suggestion was not updated. Check administrator access.");
-        suggestions = suggestions.map((item) =>
-          item.id === data.id ? { ...item, status: data.status } : item,
+        setStatus(
+          adminStatus,
+          "Suggestion approved for the team to add to the catalog.",
         );
-        setStatus(adminStatus, "Suggestion approved for the team to add to the catalog.");
       } else {
-        const { data, error } = await supabaseClient
+        const { error } = await client
           .from("dish_suggestions")
           .delete()
-          .eq("id", removeButton.dataset.removeSuggestion)
-          .select("id")
-          .maybeSingle();
+          .eq("id", removeButton.dataset.removeSuggestion);
         if (error) throw error;
-        if (!data) throw new Error("Suggestion was not removed. Check administrator access.");
-        suggestions = suggestions.filter((item) => item.id !== data.id);
         setStatus(adminStatus, "Suggestion removed.");
       }
-      renderSuggestions();
     } catch (error) {
       console.error("Unable to moderate dish suggestion.", error);
-      setStatus(adminStatus, error.message || "Unable to update suggestion.", true);
+      setStatus(
+        adminStatus,
+        error.message || "Unable to update suggestion.",
+        true,
+      );
       target.disabled = false;
     }
   });
 
-  supabaseClient.auth.onAuthStateChange((_event, session) => {
-    window.setTimeout(() => updateAdminView(session), 0);
+  client.auth.onAuthStateChange((_event, session) => {
+    window.setTimeout(() => void updateAdminView(session), 0);
   });
-  supabaseClient.auth.getSession().then(({ data, error }) => {
-    if (error) {
-      console.error("Unable to restore administrator session for suggestions.", error);
-      return;
-    }
-    updateAdminView(data.session);
-  });
+  void client.auth
+    .getSession()
+    .then(({ data, error }) => {
+      if (error) throw error;
+      return updateAdminView(data.session);
+    })
+    .catch((error) => {
+      console.error(
+        "Unable to restore the Supabase suggestion session.",
+        error,
+      );
+      setStatus(adminStatus, "Unable to restore administrator access.", true);
+    });
 }
 
 initDishSuggestions();
@@ -808,7 +932,8 @@ const dishes = [
     origin: "Ilocos Region, Luzon",
     ingredients: "Rice flour, egg, longganisa, papaya, mung beans, oil",
     description:
-      "A crispy orange pastry filled with savory meat and vegetables, known for its bright golden crust and rich local flavor.",
+      "A crispy orange pastry filled with savory meat and vegetables, " +
+      "known for its bright golden crust and rich local flavor.",
     image: "img/ilocos empanada.jpg",
     youtubeVideoId: "gNKJcnxzJzA",
   },
@@ -818,7 +943,8 @@ const dishes = [
     origin: "Cagayan Valley, Luzon",
     ingredients: "Miki noodles, pork, egg, onions, soy sauce, vegetables",
     description:
-      "Noodles served with sautéed meat and a poached egg, bringing a hearty and comforting taste from the north.",
+      "Noodles served with sautéed meat and a poached egg, bringing a " +
+      "hearty and comforting taste from the north.",
     image: "img/pancit batil.jpg",
     youtubeVideoId: "Csjlh1_Jvrs",
   },
@@ -828,7 +954,8 @@ const dishes = [
     origin: "Central Luzon, Luzon",
     ingredients: "Glutinous rice, chicken, coconut milk, turmeric, vegetables",
     description:
-      "A festive rice dish similar to paella, rich with coconut milk, turmeric, and a savory chicken finish.",
+      "A festive rice dish similar to paella, rich with coconut milk, " +
+      "turmeric, and a savory chicken finish.",
     image: "img/bringhe.jpg",
     youtubeVideoId: "8dWcXij_ec8",
   },
@@ -848,7 +975,8 @@ const dishes = [
     origin: "Bicol Region, Luzon",
     ingredients: "Pork, coconut milk, chili peppers, shrimp paste, garlic",
     description:
-      "A spicy, creamy pork dish with coconut milk and chili peppers, famous for its rich heat and bold flavor.",
+      "A spicy, creamy pork dish with coconut milk and chili peppers, " +
+      "famous for its rich heat and bold flavor.",
     image: "img/bicol express.jpg",
     youtubeVideoId: "0NkDScC-Tg4",
   },
@@ -858,7 +986,8 @@ const dishes = [
     origin: "Western Visayas, Visayas",
     ingredients: "Noodles, pork, pork liver, garlic, onions, pork broth",
     description:
-      "A comforting noodle soup topped with pork, liver, and crushed pork cracklings for a rich savory bite.",
+      "A comforting noodle soup topped with pork, liver, and crushed " +
+      "pork cracklings for a rich savory bite.",
     image: "img/La Paz Batchoy.jpg",
     youtubeVideoId: "we4_J9iB3HQ",
   },
@@ -868,11 +997,13 @@ const dishes = [
     origin: "Central Visayas, Visayas",
     ingredients: "Whole pig, lemongrass, garlic, onions, salt",
     description:
-      "A whole roasted pig known for its crisp skin and flavorful, tender meat, prepared with care and patience.",
+      "A whole roasted pig known for its crisp skin and flavorful, " +
+      "tender meat, prepared with care and patience.",
     image: "img/Cebu Lechon.jpg",
     youtubeVideoId: "KQtZiAI4yHQ",
     video:
-      "https://commons.wikimedia.org/wiki/Special:Redirect/file/Lechon_vendors_in_Talisay_Cebu.webm",
+      "https://commons.wikimedia.org/wiki/Special:Redirect/file/" +
+      "Lechon_vendors_in_Talisay_Cebu.webm",
     videoCredit:
       "Lechon vendors in Talisay Cebu — Lady01v, CC BY-SA 4.0 (Wikimedia Commons)",
   },
@@ -882,7 +1013,8 @@ const dishes = [
     origin: "Eastern Visayas, Visayas",
     ingredients: "Taro, coconut milk, brown sugar, egg yolks",
     description:
-      "A sweet delicacy made from grated taro and coconut milk, traditionally cooked in a coconut shell.",
+      "A sweet delicacy made from grated taro and coconut milk, " +
+      "traditionally cooked in a coconut shell.",
     image: "img/Binagol.jpg",
     youtubeVideoId: "p5rPToBb6iY",
   },
@@ -891,9 +1023,11 @@ const dishes = [
     region: "Visayas",
     origin: "Negros Island Region, Visayas",
     ingredients:
-      "Beef shank, batwan fruit, lemongrass, annatto, unripe jackfruit, chili peppers, aromatics, fish sauce",
+      "Beef shank, batwan fruit, lemongrass, annatto, unripe jackfruit, " +
+      "chili peppers, aromatics, fish sauce",
     description:
-      "A hearty Ilonggo beef soup with a tangy sour base and vibrant orange broth that warms the soul.",
+      "A hearty Ilonggo beef soup with a tangy sour base and vibrant " +
+      "orange broth that warms the soul.",
     image: "img/Kansi.jpg",
     youtubeVideoId: "7sLtMqObW6E",
   },
@@ -904,7 +1038,8 @@ const dishes = [
     ingredients:
       "Glutinous rice, rice flour, coconut milk, brown sugar, cocoa powder, banana leaves",
     description:
-      "A half plain, half chocolate sticky rice delicacy wrapped in banana leaves and steamed until chewy and sweet.",
+      "A half plain, half chocolate sticky rice delicacy wrapped in " +
+      "banana leaves and steamed until chewy and sweet.",
     image: "img/moron.jpg",
     youtubeVideoId: "aST5HgMSzl8",
   },
@@ -914,7 +1049,8 @@ const dishes = [
     origin: "Zamboanga Peninsula, Mindanao",
     ingredients: "Curacha crab, coconut milk, garlic, onions, chili",
     description:
-      "A large local crab dish simmered in a rich, savory sauce that highlights the region’s coastal flavors.",
+      "A large local crab dish simmered in a rich, savory sauce that " +
+      "highlights the region’s coastal flavors.",
     image: "img/Curacha.jpg",
     youtubeVideoId: "sRLYQJbo9vw",
   },
@@ -924,7 +1060,8 @@ const dishes = [
     origin: "Northern Mindanao, Mindanao",
     ingredients: "Grilled pork, fresh fish, vinegar, calamansi, onions, chili",
     description:
-      "A vibrant mix of grilled pork and fresh fish, cured with vinegar and citrus for a bright, bold bite.",
+      "A vibrant mix of grilled pork and fresh fish, cured with vinegar " +
+      "and citrus for a bright, bold bite.",
     image: "img/Sinuglaw.jpg",
     youtubeVideoId: "YeuBWQKrcuo",
   },
@@ -934,7 +1071,8 @@ const dishes = [
     origin: "Davao Region, Mindanao",
     ingredients: "Fresh tuna, vinegar, calamansi, onions, ginger, chili",
     description:
-      "Fresh tuna cured in vinegar and citrus, creating a clean, bright, and refreshing seafood dish.",
+      "Fresh tuna cured in vinegar and citrus, creating a clean, bright, " +
+      "and refreshing seafood dish.",
     image: "img/Kinilaw na Tuna.jpg",
     youtubeVideoId: "ncphGweaYFk",
   },
@@ -943,9 +1081,11 @@ const dishes = [
     region: "Luzon",
     origin: "Central Luzon, Luzon",
     ingredients:
-      "Oxtail, tripe, peanut butter, banana heart, eggplant, string beans, pechay, annatto seeds, garlic, onion, bagoong alamang",
+      "Oxtail, tripe, peanut butter, banana heart, eggplant, string " +
+      "beans, pechay, annatto seeds, garlic, onion, bagoong alamang",
     description:
-      "A rich, thick peanut stew with oxtail, tripe, and vegetables, served hot with salty shrimp paste on the side.",
+      "A rich, thick peanut stew with oxtail, tripe, and vegetables, " +
+      "served hot with salty shrimp paste on the side.",
     image: "img/kare-kare.jpg",
     youtubeVideoId: "nqhBVM5-SmU",
   },
@@ -954,9 +1094,11 @@ const dishes = [
     region: "Luzon",
     origin: "Ilocos Region, Luzon",
     ingredients:
-      "Saluyot, squash, eggplant, okra, string beans, grilled fish, bagoong isda, water, onion, tomato",
+      "Saluyot, squash, eggplant, okra, string beans, grilled fish, " +
+      "bagoong isda, water, onion, tomato",
     description:
-      "A simple, comforting vegetable soup with grilled fish and a savory broth that captures everyday Ilocano warmth.",
+      "A simple, comforting vegetable soup with grilled fish and a " +
+      "savory broth that captures everyday Ilocano warmth.",
     image: "img/Dinengdeng.jpg",
     youtubeVideoId: "uQ10T4bP0zY",
   },
@@ -965,9 +1107,11 @@ const dishes = [
     region: "Luzon",
     origin: "MIMAROPA, Luzon",
     ingredients:
-      "Octopus, soy sauce, vinegar, garlic, onion, ginger, bay leaves, oil, water, salt, pepper, sugar",
+      "Octopus, soy sauce, vinegar, garlic, onion, ginger, bay leaves, " +
+      "oil, water, salt, pepper, sugar",
     description:
-      "Tender octopus simmered in a classic adobo blend of soy sauce and vinegar, with garlic and ginger for depth.",
+      "Tender octopus simmered in a classic adobo blend of soy sauce and " +
+      "vinegar, with garlic and ginger for depth.",
     image: "img/adobong pugita.jpg",
     youtubeVideoId: "kbOnnr_bDgg",
   },
@@ -976,9 +1120,11 @@ const dishes = [
     region: "Mindanao",
     origin: "SOCCSKSARGEN, Mindanao",
     ingredients:
-      "Beef, coconut milk, palapa, aromatics, tomatoes, vegetables, seasoning, cooking oil, garnish",
+      "Beef, coconut milk, palapa, aromatics, tomatoes, vegetables, " +
+      "seasoning, cooking oil, garnish",
     description:
-      "A rich and aromatic beef stew from Maguindanao, simmered in coconut milk and layered with bold, warming spices.",
+      "A rich and aromatic beef stew from Maguindanao, simmered in " +
+      "coconut milk and layered with bold, warming spices.",
     image: "img/Beef Sinina.jpg",
     youtubeVideoId: "_SZ6vNCF8SM",
   },
@@ -989,7 +1135,8 @@ const dishes = [
     ingredients:
       "Fresh crabs, young coconut meat, crab fat, aromatics, coconut milk",
     description:
-      "A traditional heritage dish of stuffed crabs simmered in coconut milk, rich with crab fat and fragrant spices.",
+      "A traditional heritage dish of stuffed crabs simmered in coconut " +
+      "milk, rich with crab fat and fragrant spices.",
     image: "img/Bunta'a.jpg",
     youtubeVideoId: "1tQ9_h10LW0",
     videoNote: "Related recipe video.",
@@ -999,9 +1146,11 @@ const dishes = [
     region: "Mindanao",
     origin: "BARMM, Mindanao",
     ingredients:
-      "Beef, burnt coconut, coconut milk, garlic, shallots, ginger, turmeric, chili, lemongrass, beef stock",
+      "Beef, burnt coconut, coconut milk, garlic, shallots, ginger, " +
+      "turmeric, chili, lemongrass, beef stock",
     description:
-      "A traditional black beef soup with burnt coconut and warming spices, known for its deep color and ceremonial origins.",
+      "A traditional black beef soup with burnt coconut and warming " +
+      "spices, known for its deep color and ceremonial origins.",
     image: "img/Tiyula Itum.jpg",
     youtubeVideoId: "UTdTTwWfo14",
   },
@@ -1075,7 +1224,8 @@ const preparationByDish = {
   ],
   "Kare-Kare": [
     "Simmer oxtail and tripe until tender, reserving the broth.",
-    "Blend peanut butter and toasted rice flour with broth; add to the meat and simmer until thick.",
+    "Blend peanut butter and toasted rice flour with broth; add to the " +
+      "meat and simmer until thick.",
     "Cook vegetables until just tender, then serve with the stew and bagoong.",
   ],
   Dinengdeng: [
@@ -1101,7 +1251,8 @@ const preparationByDish = {
   "Tiyula Itum": [
     "Toast coconut until very dark, then grind it finely.",
     "Brown beef with garlic, shallots, ginger, turmeric, chili, and lemongrass.",
-    "Add stock and toasted coconut; simmer until the beef is tender and the broth is deeply colored.",
+    "Add stock and toasted coconut; simmer until the beef is tender " +
+      "and the broth is deeply colored.",
   ],
 };
 
@@ -1127,13 +1278,28 @@ function initDishSection() {
     });
     grid.innerHTML = visible
       .map(
-        (
-          dish,
-          index,
-        ) => `<article class="dish-card reveal" style="animation-delay:${index * 0.06}s" data-name="${dish.name}">
-    <div class="dish-card-image"><img src="${dish.image}" alt="${dish.name}" loading="lazy" decoding="async"><span class="dish-region">${dish.region}</span><span class="dish-video-badge">▶ VIDEO · PREP</span></div>
-    <div class="dish-card-content"><h3>${dish.name}<span class="dish-arrow">↗</span></h3><p>${dish.description}</p></div>
-  </article>`,
+        (dish, index) => `
+          <article
+            class="dish-card reveal"
+            style="animation-delay:${index * 0.06}s"
+            data-name="${dish.name}"
+          >
+            <div class="dish-card-image">
+              <img
+                src="${dish.image}"
+                alt="${dish.name}"
+                loading="lazy"
+                decoding="async"
+              >
+              <span class="dish-region">${dish.region}</span>
+              <span class="dish-video-badge">▶ VIDEO · PREP</span>
+            </div>
+            <div class="dish-card-content">
+              <h3>${dish.name}<span class="dish-arrow">↗</span></h3>
+              <p>${dish.description}</p>
+            </div>
+          </article>
+        `,
       )
       .join("");
     grid.classList.remove("grid-refresh");
@@ -1219,11 +1385,14 @@ function initDishSection() {
     videoHeading.textContent = "Watch the preparation";
     videoPanel.append(videoHeading);
     const videoFrame = document.createElement("iframe");
-    videoFrame.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(dish.youtubeVideoId)}?rel=0`;
+    videoFrame.src =
+      `https://www.youtube-nocookie.com/embed/${encodeURIComponent(dish.youtubeVideoId)}` +
+      "?rel=0";
     videoFrame.title = `${dish.name} preparation video`;
     videoFrame.loading = "lazy";
     videoFrame.allow =
-      "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+      "accelerometer; autoplay; clipboard-write; encrypted-media; " +
+      "gyroscope; picture-in-picture; web-share";
     videoFrame.allowFullscreen = true;
     videoFrame.referrerPolicy = "strict-origin-when-cross-origin";
     videoPanel.append(videoFrame);
@@ -1276,11 +1445,16 @@ function initDishSection() {
   document.querySelectorAll("[data-carousel-step]").forEach((button) => {
     button.addEventListener("click", () => {
       const direction = Number(button.dataset.carouselStep) || 1;
-      grid.scrollBy({ left: direction * grid.clientWidth * 0.78, behavior: "smooth" });
+      grid.scrollBy({
+        left: direction * grid.clientWidth * 0.78,
+        behavior: "smooth",
+      });
     });
   });
   if (searchInput) {
-    const initialSearch = new URLSearchParams(window.location.search).get("search");
+    const initialSearch = new URLSearchParams(window.location.search).get(
+      "search",
+    );
     if (initialSearch) searchInput.value = initialSearch;
   }
   const modal = document.querySelector("#dish-modal");
@@ -1306,7 +1480,12 @@ function initDishSection() {
   }
 
   const animatedItems = document.querySelectorAll(
-    ".dish-toolbar, .culture-image, .culture-copy, .gallery-grid figure, .builder-feature, .builder-card, .builders-section-heading, .builders-process, .builders-hero-copy, .builders-hero-art, .site-footer, .page-hero, .page-card, .page-panel, .home-hero-copy, .home-hero-art, .dishes-section > .section-heading",
+    ".dish-toolbar, .culture-image, .culture-copy, .gallery-grid " +
+      "figure, .builder-feature, .builder-card, " +
+      ".builders-section-heading, .builders-process, " +
+      ".builders-hero-copy, .builders-hero-art, .site-footer, " +
+      ".page-hero, .page-card, .page-panel, .home-hero-copy, " +
+      ".home-hero-art, .dishes-section > .section-heading",
   );
   animatedItems.forEach((item) => item.classList.add("scroll-animate"));
 
@@ -1326,7 +1505,9 @@ function initDishSection() {
       const py = (event.clientY - rect.top) / rect.height;
       const rotateY = (px - 0.5) * maxRotate * 2;
       const rotateX = (0.5 - py) * maxRotate * 2;
-      element.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-6px)`;
+      element.style.transform =
+        `perspective(1000px) rotateX(${rotateX}deg) ` +
+        `rotateY(${rotateY}deg) translateY(-6px)`;
     });
 
     element.addEventListener("pointerleave", () => {
@@ -1370,14 +1551,36 @@ function initFoodGuide() {
   if (document.querySelector(".food-guide")) return;
   const widget = document.createElement("aside");
   widget.className = "food-guide";
-  widget.innerHTML = `
-    <button class="food-guide-launch" type="button" aria-expanded="false" aria-controls="food-guide-panel" aria-label="Ask about this website">✦<span> Ask about this website</span></button>
-    <section class="food-guide-panel" id="food-guide-panel" role="dialog" aria-label="Website guide" hidden>
-      <header><div><strong>Panlasa Guide</strong><small>Your guide to food and culture</small></div><button class="food-guide-clear" type="button" aria-label="Clear conversation">Clear</button><button class="food-guide-close" type="button" aria-label="Close chat">×</button></header>
-      <div class="food-guide-messages" aria-live="polite"><article class="guide-message">Mabuhay! Ask me about any page, dish, recipe, feature, or team member on this website.</article></div>
-      <div class="food-guide-suggestions"><button type="button">What pages are on this website?</button><button type="button">What dishes can I explore?</button><button type="button">How do I suggest a dish?</button><button type="button">How do I use the music player?</button></div>
-      <form class="food-guide-form"><label class="sr-only" for="food-guide-input">Ask about this website</label><input id="food-guide-input" maxlength="250" autocomplete="off" placeholder="Ask about this website…" required><button type="submit" aria-label="Send message">↑</button></form>
-    </section>`;
+  widget.innerHTML = [
+    '<button class="food-guide-launch" type="button" ',
+    'aria-expanded="false" aria-controls="food-guide-panel" ',
+    'aria-label="Ask about this website">',
+    "✦<span> Ask about this website</span></button>",
+    '<section class="food-guide-panel" id="food-guide-panel" ',
+    'role="dialog" aria-label="Website guide" hidden>',
+    "<header><div><strong>Panlasa Guide</strong>",
+    "<small>Your guide to food and culture</small></div>",
+    '<button class="food-guide-clear" type="button" ',
+    'aria-label="Clear conversation">Clear</button>',
+    '<button class="food-guide-close" type="button" ',
+    'aria-label="Close chat">×</button></header>',
+    '<div class="food-guide-messages" aria-live="polite">',
+    '<article class="guide-message">',
+    "Mabuhay! Ask me about any page, dish, recipe, feature, or team member ",
+    "on this website.</article></div>",
+    '<div class="food-guide-suggestions">',
+    '<button type="button">What pages are on this website?</button>',
+    '<button type="button">What dishes can I explore?</button>',
+    '<button type="button">How do I suggest a dish?</button>',
+    '<button type="button">How do I use the music player?</button></div>',
+    '<form class="food-guide-form">',
+    '<label class="sr-only" for="food-guide-input">',
+    "Ask about this website</label>",
+    '<input id="food-guide-input" maxlength="250" autocomplete="off" ',
+    'placeholder="Ask about this website…" required>',
+    '<button type="submit" aria-label="Send message">↑</button>',
+    "</form></section>",
+  ].join("");
   document.body.append(widget);
   const launch = widget.querySelector(".food-guide-launch");
   const panel = widget.querySelector(".food-guide-panel");
@@ -1385,7 +1588,9 @@ function initFoodGuide() {
   const input = widget.querySelector("input");
   const form = widget.querySelector("form");
   const sendButton = form.querySelector('button[type="submit"]');
-  const suggestions = [...widget.querySelectorAll(".food-guide-suggestions button")];
+  const suggestions = [
+    ...widget.querySelectorAll(".food-guide-suggestions button"),
+  ];
   let lastDishName = "";
   let activeReplyTimer = 0;
   let isReplyPending = false;
@@ -1432,42 +1637,105 @@ function initFoodGuide() {
   const pageKnowledge = [
     {
       title: "Home page",
-      text: "Home introduces Tahak sa Panlasa, a food and culture journey that starts with Filipino dishes, traditions, and stories, with plans to grow to include food cultures from around the world. Use the navigation to visit Home, Dishes, Our Story, Feedback, Suggest a dish, and Login. The theme button switches light and dark mode. The dishes can be searched by name or ingredient.",
+      text:
+        "Home introduces Tahak sa Panlasa, a food and culture journey that " +
+        "starts with Filipino dishes, traditions, and stories, with plans " +
+        "to grow to include food cultures from around the world. Use the " +
+        "navigation to visit Home, Dishes, Our Story, Feedback, Suggest a " +
+        "dish, and Login. The theme button switches light and dark mode. " +
+        "The dishes can be searched by name or ingredient.",
     },
     {
       title: "Our Story page",
-      text: "Our Story introduces the purpose of Tahak sa Panlasa and the five teammates who built it. Filipino recipes are passed down through hands, stories, and everyday rituals. Birthdays and town fiestas bring relatives and neighbors together. Filipino food reflects migration, exchange, hospitality, and sharing.",
+      text:
+        "Our Story introduces the purpose of Tahak sa Panlasa and the five " +
+        "teammates who built it. Filipino recipes are passed down through " +
+        "hands, stories, and everyday rituals. Birthdays and town fiestas " +
+        "bring relatives and neighbors together. Filipino food reflects " +
+        "migration, exchange, hospitality, and sharing.",
     },
     {
-      text: "The home page gallery shows Filipino dishes, ingredients, preparation, and shared meals.",
+      title: "Home page gallery",
+      text:
+        "The home page gallery shows Filipino dishes, ingredients, " +
+        "preparation, and shared meals.",
     },
     {
       title: "Our Story and team",
-      text: "The Our Story page shares Tahak sa Panlasa’s purpose and introduces the five teammates and their project roles. Jhurenz Arapoc is project leader and programmer, responsible for project direction and the interactive website. Aron Seludo is web designer, responsible for visual identity and responsive design. Noah Lontoc is content manager, organizing dish details, stories, and cultural content. Jester Teodosio is researcher, covering dishes, ingredients, and traditions. Rodjay Sabornido is documentation officer, recording project work, testing, and documentation. The project process is Explore, Shape, and Refine.",
+      text:
+        "The Our Story page shares Tahak sa Panlasa’s purpose and " +
+        "introduces the five teammates and their project roles. Jhurenz " +
+        "Arapoc is project leader and programmer, responsible for project " +
+        "direction and the interactive website. Aron Seludo is web " +
+        "designer, responsible for visual identity and responsive design. " +
+        "Noah Lontoc is content manager, organizing dish details, stories, " +
+        "and cultural content. Jester Teodosio is researcher, covering " +
+        "dishes, ingredients, and traditions. Rodjay Sabornido is " +
+        "documentation officer, recording project work, testing, and " +
+        "documentation. The project process is Explore, Shape, and Refine.",
     },
     {
       title: "Feedback page",
-      text: "The Feedback page lets visitors add a public comment and a 1-to-5-star rating for the website. With Supabase configured, comments are shared with visitors on other devices and refresh automatically. Without the project URL, public anon key, and database setup, comments cannot be submitted or loaded. Visitors may also use the Contact Us details shown on this page.",
+      text:
+        "The Feedback page lets visitors add a public comment and a " +
+        "1-to-5-star rating for the website. With Supabase configured, " +
+        "comments are shared with visitors on other devices and appear " +
+        "live. Supabase administrators can remove comments. Visitors may " +
+        "also use the Contact Us details shown on this page.",
     },
     {
       title: "Suggest a dish page",
-      text: "Visitors can use the Suggest a dish page to send the team a dish name, origin or food culture, main ingredients, and description. Suggestions are submitted for team review and are not automatically published. The team can review, approve, or remove submissions after Supabase is configured and an administrator signs in. The dish catalog is updated by the team after verifying an approved suggestion.",
+      text:
+        "Visitors can use the Suggest a dish page to send the team a dish " +
+        "name, origin or food culture, main ingredients, and description. " +
+        "Suggestions are submitted to Supabase for team review and are " +
+        "not automatically published. A Supabase administrator can review, " +
+        "approve, or remove submissions. The dish catalog is updated by " +
+        "the team after verifying an approved suggestion.",
     },
     {
       title: "Login page",
-      text: "The separate Login page lets visitors create an optional account, sign in, or sign out. Account features require the Supabase project URL and public anon key in Javascript/supabase-config.js, along with database setup and an internet connection. Signing up does not grant administrator access; the site owner must explicitly add an account UUID to the website_admins table.",
+      text:
+        "The Login page lets visitors create a Supabase account, sign in, " +
+        "or sign out. Visitors can submit feedback and dish suggestions " +
+        "without an account. Signing up does not grant administrator " +
+        "access; the site owner must explicitly add the user's UUID to the " +
+        "Supabase website_admins table to allow feedback " +
+        "and dish-suggestion moderation.",
     },
     {
       title: "Website music player",
-      text: "The site-wide music player provides play and pause, mute and unmute, and an adjustable volume slider. To enable playback, add a licensed audio file to the website and set its relative path as src in Javascript/music-config.js. Playback starts only after the visitor chooses Play. Volume and mute preferences are saved in the current browser.",
+      text:
+        "The site-wide music player provides automatic playback when the " +
+        "browser allows it, plus play and pause, mute and unmute, and an " +
+        "adjustable volume slider. If the browser blocks autoplay, click " +
+        "or tap anywhere on the page to start music. Volume and mute " +
+        "preferences are saved in the current browser.",
     },
     {
       title: "Dishes page",
-      text: "The Dishes page is opened using the Dishes navigation link. Visitors can search and filter the collection, open dish details, and follow a link to suggest another dish. Dish suggestions are reviewed by the team before publication.",
+      text:
+        "The Dishes page is opened using the Dishes navigation link. " +
+        "Visitors can search and filter the collection, open dish details, " +
+        "and follow a link to suggest another dish. Dish suggestions are " +
+        "reviewed by the team before publication.",
     },
     {
       title: "Website features",
-      text: "The site is a food and culture journey that starts with Filipino dishes and stories, with plans to expand and share food traditions from around the world. It has a searchable dish collection and cards that open details with ingredients, origins, preparation steps, and YouTube videos. Other features include light and dark themes, a photo gallery, team profiles, Supabase-backed public website feedback and ratings when configured, optional accounts, admin moderation, dish suggestions, an adjustable site music player, a site-wide locally curated chatbot, a back-to-top button, a moving food photo background, and an opening animation. Some external photos, account functions, shared data, and video links need an internet connection.",
+      text:
+        "The site is a food and culture journey that starts with Filipino " +
+        "dishes and stories, with plans to expand and share food " +
+        "traditions from around the world. It has a searchable dish " +
+        "collection and cards that open details with ingredients, origins, " +
+        "preparation steps, and YouTube videos. Other features include " +
+        "light and dark themes, a photo gallery, team profiles, " +
+        "Supabase-backed live public website feedback and ratings, " +
+        "optional accounts, admin moderation, dish suggestions, an " +
+        "adjustable site music player, a site-wide locally curated " +
+        "chatbot, a back-to-top button, a moving food photo background, " +
+        "and an opening animation. Some external photos, account " +
+        "functions, shared data, and video links need an internet " +
+        "connection.",
     },
   ];
   const dishTags = {
@@ -1516,9 +1784,9 @@ function initFoodGuide() {
       .replace(/\s+/g, " ")
       .trim();
   const stopWords = new Set(
-    "a an and are about can do for from how i in is it me of on or tell the this to what where which who why with you your please recommend suggest".split(
-      " ",
-    ),
+    "a an and are about can do for from how i in is it me of on or " +
+      "tell the this to what where which who why with you your please " +
+      "recommend suggest".split(" "),
   );
   const queryWords = (text) =>
     normalize(text)
@@ -1526,7 +1794,10 @@ function initFoodGuide() {
       .filter((word) => word.length > 1 && !stopWords.has(word));
   const editDistance = (left, right) => {
     if (Math.abs(left.length - right.length) > 2) return 3;
-    let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+    let previous = Array.from(
+      { length: right.length + 1 },
+      (_, index) => index,
+    );
     for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
       const current = [leftIndex];
       for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
@@ -1543,14 +1814,9 @@ function initFoodGuide() {
   };
   const findDishMatches = (question) => {
     const normalizedQuestion = normalize(question);
-    const exactMatches = dishes.filter((dish) => {
-      if (normalizedQuestion.includes(normalize(dish.name))) return true;
-      return Object.entries(foodAliases).some(
-        ([aliasName, canonicalName]) =>
-          canonicalName === dish.name &&
-          normalizedQuestion.includes(normalize(aliasName)),
-      );
-    });
+    const exactMatches = dishes.filter((dish) =>
+      normalizedQuestion.includes(normalize(dish.name)),
+    );
     if (exactMatches.length) return exactMatches;
 
     const words = queryWords(question);
@@ -1568,27 +1834,52 @@ function initFoodGuide() {
   const answerFor = (question) => {
     const q = normalize(question);
     if (
-      /\b(submit|submission|send|suggestion page|suggestions page|suggest a dish page)\b/.test(q) ||
+      /\b(submit|submission|send|suggestion page|suggestions page|suggest a dish page)\b/.test(
+        q,
+      ) ||
       (/\b(how|where|review|approve)\b/.test(q) &&
         /\b(suggest|suggestion|dish)\b/.test(q))
     ) {
       lastDishName = "";
-      return "Use the Suggest a dish page from the navigation. Enter its name, origin or food culture, ingredients, and description, then send it for team review. Suggestions are not published automatically. Online submissions and admin review need the site owner's Supabase configuration.";
+      return (
+        "Use the Suggest a dish page from the navigation. Enter its name, " +
+        "origin or food culture, ingredients, and description, then send " +
+        "it for team review. Suggestions are not published automatically. " +
+        "Online submissions and admin review need the site owner's " +
+        "Supabase configuration; admins are authorized in the Supabase " +
+        "website_admins collection."
+      );
     }
     if (
       /\b(music|audio|volume|mute)\b/.test(q) &&
       /\b(player|play|site|website|sound|volume|mute|music)\b/.test(q)
     ) {
       lastDishName = "";
-      return "Use the music player at the bottom-left of the page to play or pause, mute or unmute, and adjust volume. Playback is disabled until the site owner adds an audio file path in Javascript/music-config.js. Music starts only after you press Play.";
+      return (
+        "Music attempts to start automatically. If your browser blocks " +
+        "autoplay, click or tap anywhere on the page, or use the music " +
+        "player at the bottom-left to play or pause, mute or unmute, and " +
+        "adjust volume."
+      );
     }
     if (/\b(login|sign in|sign up|account|password)\b/.test(q)) {
       lastDishName = "";
-      return "Open the separate Login page from the navigation to create an optional account, sign in, or sign out. Admin access is granted by the site owner in Supabase; signing up alone does not make an account an admin.";
+      return (
+        "Open Login from the navigation to create a Supabase account or " +
+        "sign in. Visitors can still send public feedback and dish " +
+        "suggestions without an account. The site owner must grant " +
+        "administrator access in Supabase; creating a regular account " +
+        "does not make it an admin."
+      );
     }
     if (/\b(feedback|rating|comment|contact us)\b/.test(q)) {
       lastDishName = "";
-      return "Open Feedback from the navigation to rate the website and leave a comment, or use its Contact Us details. Shared feedback works only after the site owner configures Supabase and runs the supplied database setup.";
+      return (
+        "Open Feedback from the navigation to rate the website and leave a " +
+        "comment, or use its Contact Us details. Comments appear live " +
+        "after the site owner configures Supabase and publishes the " +
+        "database policies. Feedback administrators sign in through Login."
+      );
     }
     const group = ["Luzon", "Visayas", "Mindanao"].find((region) =>
       q.includes(region.toLowerCase()),
@@ -1604,18 +1895,24 @@ function initFoodGuide() {
         : dishes;
       const heading = group ? `${group} dishes` : "All dishes on the site";
       lastDishName = "";
-      return `${heading}: ${matchingDishes.map((dish) => `${dish.name} (${dish.origin})`).join("; ")}.`;
+      const list = matchingDishes
+        .map((dish) => `${dish.name} (${dish.origin})`)
+        .join("; ");
+      return `${heading}: ${list}.`;
     }
     const openDishName = document.querySelector(
       "#dish-modal.open #modal-title",
     )?.textContent;
     const currentDishName = openDishName || lastDishName;
     const asksDishDetail =
-      /\b(ingredient|made of|contain|prepare|cook|recipe|steps|video|watch|origin|where|region|describe|tell me more|what about)\b/.test(
+      /\b(ingredient|made of|contain|prepare|cook|recipe|steps)\b/.test(q) ||
+      /\b(video|watch|origin|where|region|describe|tell me more|what about)\b/.test(
         q,
       );
     const mentionsCurrentDish =
-      /\b(this dish|that dish|it|its ingredients|its origin|what about)\b/.test(q) ||
+      /\b(this dish|that dish|it|its ingredients|its origin|what about)\b/.test(
+        q,
+      ) ||
       (!isRecommendation && Boolean(lastDishName) && asksDishDetail);
     const matchedDishes = findDishMatches(question);
     if (
@@ -1627,7 +1924,8 @@ function initFoodGuide() {
         .slice(0, 2)
         .map(
           (item) =>
-            `${item.name} (${item.origin}): ${item.description} Key ingredients: ${item.ingredients}.`,
+            `${item.name} (${item.origin}): ${item.description} ` +
+            `Key ingredients: ${item.ingredients}.`,
         )
         .join("\n\n");
     }
@@ -1643,10 +1941,18 @@ function initFoodGuide() {
         : /prepare|cook|recipe|steps/.test(q)
           ? `Preparation: ${(preparationByDish[dish.name] || []).join(" ")}`
           : /video|watch|youtube/.test(q)
-            ? `Preparation video: https://www.youtube.com/watch?v=${dish.youtubeVideoId}${dish.video ? `. Additional video: ${dish.video}` : ""}${dish.videoCredit ? `. Credit: ${dish.videoCredit}` : ""}`
+            ? `Preparation video: https://www.youtube.com/watch?v=${dish.youtubeVideoId}` +
+              (dish.video ? `. Additional video: ${dish.video}` : "") +
+              (dish.videoCredit ? `. Credit: ${dish.videoCredit}` : "")
             : /origin|where|region|from/.test(q)
               ? `${dish.name} comes from ${dish.origin}. ${dish.description}`
-              : `${dish.name} is from ${dish.origin}. ${dish.description} Ingredients: ${dish.ingredients}. Preparation: ${(preparationByDish[dish.name] || []).join(" ")} Image: ${dish.image}. Video: https://www.youtube.com/watch?v=${dish.youtubeVideoId}.`;
+              : [
+                  `${dish.name} is from ${dish.origin}. ${dish.description} `,
+                  `Ingredients: ${dish.ingredients}. Preparation: `,
+                  `${(preparationByDish[dish.name] || []).join(" ")} `,
+                  `Image: ${dish.image}. Video: `,
+                  `https://www.youtube.com/watch?v=${dish.youtubeVideoId}.`,
+                ].join("");
       return asksFor;
     }
 
@@ -1655,7 +1961,8 @@ function initFoodGuide() {
       const recommendations = dishes
         .map((item) => {
           const searchable = normalize(
-            `${item.name} ${item.region} ${item.origin} ${item.ingredients} ${item.description} ${dishTags[item.name] || ""}`,
+            `${item.name} ${item.region} ${item.origin} ${item.ingredients} ` +
+              `${item.description} ${dishTags[item.name] || ""}`,
           );
           const score = words.reduce(
             (total, word) => total + (searchable.includes(word) ? 1 : 0),
@@ -1674,8 +1981,7 @@ function initFoodGuide() {
         return `Based on what you mentioned, you could try ${recommendations
           .filter(({ score }) => score === topScore)
           .map(
-            ({ item }) =>
-              `${item.name} (${item.origin}) — ${item.description}`,
+            ({ item }) => `${item.name} (${item.origin}) — ${item.description}`,
           )
           .join(" ")}`;
       }
@@ -1687,7 +1993,9 @@ function initFoodGuide() {
         section.querySelector("h1, h2, h3")?.innerText ||
         section.getAttribute("aria-label") ||
         "This page section",
-      text: `${section.innerText} ${[...section.querySelectorAll("img[alt]")].map((image) => image.alt).join(" ")}`,
+      text: `${section.innerText} ${[...section.querySelectorAll("img[alt]")]
+        .map((image) => image.alt)
+        .join(" ")}`,
     }));
     const knowledge = [...siteKnowledge, ...currentSections];
     const results = knowledge
@@ -1705,7 +2013,11 @@ function initFoodGuide() {
       .slice(0, 3);
 
     if (!results.length) {
-      return "I couldn't find that in the website's content. I can answer questions about its dishes, ingredients, recipes, pages, features, or team.";
+      return (
+        "I couldn't find that in the website's content. I can answer " +
+        "questions about its dishes, ingredients, recipes, pages, " +
+        "features, or team."
+      );
     }
     lastDishName = "";
     return results
@@ -1784,6 +2096,7 @@ function initSiteMusic() {
   const audio = document.createElement("audio");
   audio.loop = true;
   audio.preload = "metadata";
+  audio.autoplay = true;
   if (typeof config.src === "string" && config.src.trim()) {
     audio.src = config.src.trim();
   }
@@ -1792,8 +2105,16 @@ function initSiteMusic() {
   heading.className = "site-music-title";
   heading.textContent = config.title || "Website music";
 
+  const header = document.createElement("div");
+  header.className = "site-music-header";
+  const toggleButton = document.createElement("button");
+  toggleButton.type = "button";
+  toggleButton.className = "site-music-toggle";
+  toggleButton.setAttribute("aria-controls", "site-music-controls");
+
   const controls = document.createElement("div");
   controls.className = "site-music-controls";
+  controls.id = "site-music-controls";
   const playButton = document.createElement("button");
   playButton.type = "button";
   playButton.className = "site-music-play";
@@ -1820,18 +2141,39 @@ function initSiteMusic() {
   const status = document.createElement("span");
   status.className = "site-music-status";
   status.setAttribute("role", "status");
-  status.textContent = audio.src ? "Music is off." : "Add an audio path in Javascript/music-config.js.";
+  status.textContent = audio.src
+    ? "Starting music..."
+    : "Add an audio path in Javascript/music-config.js.";
   volumeLabel.append(volumeControl);
   controls.append(playButton, muteButton, volumeLabel);
-  player.append(heading, controls, status, audio);
+  header.append(heading, toggleButton);
+  player.append(header, controls, status, audio);
   document.body.append(player);
   audio.volume = Number(volumeControl.value);
+
+  const setCollapsed = (collapsed) => {
+    player.classList.toggle("is-collapsed", collapsed);
+    toggleButton.setAttribute("aria-expanded", String(!collapsed));
+    controls.inert = collapsed;
+    controls.setAttribute("aria-hidden", String(collapsed));
+    status.setAttribute("aria-hidden", String(collapsed));
+    toggleButton.setAttribute(
+      "aria-label",
+      `${collapsed ? "Show" : "Hide"} music player`,
+    );
+    heading.setAttribute("aria-hidden", String(collapsed));
+    toggleButton.textContent = collapsed ? "♫ Music" : "Hide";
+  };
 
   try {
     const savedVolumeValue = localStorage.getItem("tahak-music-volume");
     if (savedVolumeValue !== null) {
       const savedVolume = Number(savedVolumeValue);
-      if (Number.isFinite(savedVolume) && savedVolume >= 0 && savedVolume <= 1) {
+      if (
+        Number.isFinite(savedVolume) &&
+        savedVolume >= 0 &&
+        savedVolume <= 1
+      ) {
         audio.volume = savedVolume;
         volumeControl.value = String(savedVolume);
       }
@@ -1839,19 +2181,78 @@ function initSiteMusic() {
     const muted = localStorage.getItem("tahak-music-muted") === "true";
     audio.muted = muted;
     muteButton.textContent = muted ? "Unmute" : "Mute";
-    muteButton.setAttribute("aria-label", `${muted ? "Unmute" : "Mute"} background music`);
+    muteButton.setAttribute(
+      "aria-label",
+      `${muted ? "Unmute" : "Mute"} background music`,
+    );
+    setCollapsed(localStorage.getItem("tahak-music-hidden") === "true");
   } catch (error) {
     console.warn("Music preferences are unavailable in this browser.", error);
+    setCollapsed(false);
   }
+
+  toggleButton.addEventListener("click", () => {
+    const collapsed = !player.classList.contains("is-collapsed");
+    setCollapsed(collapsed);
+    try {
+      localStorage.setItem("tahak-music-hidden", String(collapsed));
+    } catch (error) {
+      console.warn(
+        "Unable to save the music player visibility preference.",
+        error,
+      );
+    }
+  });
+
+  let waitingForInteraction = false;
+  const removeAutoplayFallback = () => {
+    document.removeEventListener("pointerdown", resumeAfterInteraction);
+    document.removeEventListener("keydown", resumeAfterInteraction);
+    waitingForInteraction = false;
+  };
+  const resumeAfterInteraction = (event) => {
+    if (player.contains(event.target)) return;
+    void startMusic();
+  };
+  let audioFailed = false;
+  const getAudioErrorMessage = () =>
+    window.location.protocol === "file:"
+      ? "Music cannot load from a file page. Run the site through a local web server."
+      : "Music could not be loaded. Check the audio file path and format.";
+  const startMusic = async () => {
+    if (!audio.src || !audio.paused) return;
+    try {
+      await audio.play();
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "NotAllowedError") {
+        status.textContent =
+          "Autoplay blocked. Click or tap anywhere to start music.";
+        if (!waitingForInteraction) {
+          document.addEventListener("pointerdown", resumeAfterInteraction);
+          document.addEventListener("keydown", resumeAfterInteraction);
+          waitingForInteraction = true;
+        }
+      } else {
+        audioFailed = true;
+        console.error("Unable to play the configured website music.", error);
+        status.textContent = getAudioErrorMessage();
+      }
+    }
+  };
 
   const updatePlayState = () => {
     const isPlaying = !audio.paused;
+    if (isPlaying) removeAutoplayFallback();
     playButton.textContent = isPlaying ? "Pause" : "Play";
     playButton.setAttribute(
       "aria-label",
       `${isPlaying ? "Pause" : "Play"} background music`,
     );
-    status.textContent = isPlaying ? "Music is playing." : "Music is off.";
+    status.textContent = isPlaying
+      ? "Music is playing."
+      : audioFailed
+        ? getAudioErrorMessage()
+        : "Music is off.";
   };
 
   playButton.addEventListener("click", async () => {
@@ -1859,20 +2260,16 @@ function initSiteMusic() {
       status.textContent = "Add an audio path in Javascript/music-config.js.";
       return;
     }
-    try {
-      if (audio.paused) await audio.play();
-      else audio.pause();
-      updatePlayState();
-    } catch (error) {
-      console.error("Unable to play the configured website music.", error);
-      status.textContent = "Music could not be played. Check the audio file path and format.";
-    }
+    if (audio.paused) await startMusic();
+    else audio.pause();
+    updatePlayState();
   });
 
   audio.addEventListener("play", updatePlayState);
   audio.addEventListener("pause", updatePlayState);
   audio.addEventListener("error", () => {
-    status.textContent = "Music could not be loaded. Check the audio file path and format.";
+    audioFailed = true;
+    status.textContent = getAudioErrorMessage();
   });
   volumeControl.addEventListener("input", () => {
     audio.volume = Number(volumeControl.value);
@@ -1900,6 +2297,7 @@ function initSiteMusic() {
       console.warn("Unable to save the music mute preference.", error);
     }
   });
+  if (audio.src) void startMusic();
 }
 
 initSiteMusic();
@@ -1909,8 +2307,16 @@ function initFoodAmbience() {
   const layer = document.createElement("div");
   layer.className = "food-ambience";
   layer.setAttribute("aria-hidden", "true");
-  layer.innerHTML =
-    "<span>🍲</span><span>🌶️</span><span>🧄</span><span>🍚</span><span>🥬</span><span>🧅</span><span>🍋</span><span>🫚</span>";
+  layer.innerHTML = [
+    "<span>🍲</span>",
+    "<span>🌶️</span>",
+    "<span>🧄</span>",
+    "<span>🍚</span>",
+    "<span>🥬</span>",
+    "<span>🧅</span>",
+    "<span>🍋</span>",
+    "<span>🫚</span>",
+  ].join("");
   document.body.prepend(layer);
   const ingredients = [...layer.querySelectorAll("span")];
   if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -1966,7 +2372,20 @@ function initOpeningIntro() {
   intro.className = "opening-intro";
   intro.setAttribute("role", "status");
   intro.setAttribute("aria-label", "Welcome to Tahak sa Panlasa");
-  intro.innerHTML = `<div class="opening-intro-inner"><p class="opening-kicker">A world of food and culture, starting in the Philippines</p><h1>Tahak <span>sa</span><br>Panlasa</h1><div class="opening-food"><img src="img/1st.jpg" alt="A colorful collection of Filipino dishes" fetchpriority="high"><span aria-hidden="true">🍋</span><span aria-hidden="true">🌶️</span></div><p class="opening-caption">Our first table, with the world to come.</p><button class="opening-skip" type="button">Skip intro</button></div>`;
+  intro.innerHTML = [
+    '<div class="opening-intro-inner">',
+    '<p class="opening-kicker">',
+    "A world of food and culture, starting in the Philippines</p>",
+    "<h1>Tahak <span>sa</span><br>Panlasa</h1>",
+    '<div class="opening-food">',
+    '<img src="img/1st.jpg" alt="A colorful collection of Filipino dishes" ',
+    'fetchpriority="high">',
+    '<span aria-hidden="true">🍋</span>',
+    '<span aria-hidden="true">🌶️</span></div>',
+    '<p class="opening-caption">Our first table, with the world to come.</p>',
+    '<button class="opening-skip" type="button">Skip intro</button>',
+    "</div>",
+  ].join("");
   document.body.append(intro);
   const dismiss = () => {
     if (intro.classList.contains("is-leaving")) return;

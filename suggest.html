@@ -2,25 +2,46 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
     <meta
       name="description"
       content="Suggest a dish for Tahak sa Panlasa to explore and consider adding to its growing food collection."
     />
     <title>Suggest a dish | Tahak sa Panlasa</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+    />
+    <link
+      rel="preconnect"
+      href="https://fonts.gstatic.com"
+      crossorigin
+    />
     <link
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link href="css/style.css" rel="stylesheet" />
+    <link
+      href="css/style.css"
+      rel="stylesheet"
+    />
   </head>
   <body class="feedback-page">
     <header class="site-header">
       <div class="logo">
-        <a class="site-brand" href="index.html">
-          <img src="img/logo-small.png" alt="" width="48" height="48" />
+        <a
+          class="site-brand"
+          href="index.html"
+        >
+          <img
+            src="img/logo-small.png"
+            alt=""
+            width="48"
+            height="48"
+          />
           <span
             ><strong>Tahak sa Panlasa</strong
             ><small>Food · culture · stories</small></span
@@ -36,12 +57,18 @@
         >
           ☰
         </button>
-        <nav class="main-nav" aria-label="Main navigation">
+        <nav
+          class="main-nav"
+          aria-label="Main navigation"
+        >
           <a href="index.html">Home</a>
           <a href="dishes.html">Dishes</a>
           <a href="builders.html">Our Story</a>
           <a href="contact.html">Feedback</a>
-          <a class="active" href="suggest.html" aria-current="page"
+          <a
+            class="active"
+            href="suggest.html"
+            aria-current="page"
             >Suggest a dish</a
           >
           <a href="login.html">Login</a>
@@ -64,13 +91,13 @@
           <span class="theme-icon">☀️</span
           ><span class="theme-label">Light</span>
         </button>
-        <a class="home-menu-link" href="contact.html" aria-label="Send feedback"
-          >✳</a
-        >
       </div>
     </header>
     <main class="feedback-main">
-      <section class="login-page-main" aria-labelledby="suggest-title">
+      <section
+        class="login-page-main"
+        aria-labelledby="suggest-title"
+      >
         <div class="feedback-account login-account">
           <p class="feedback-form-kicker">Bring a dish to our table</p>
           <h1 id="suggest-title">Suggest a dish.</h1>
@@ -78,7 +105,10 @@
             Tell us about a dish you would like to see. Suggestions are reviewed
             by the team before any dish is added to the collection.
           </p>
-          <form id="dish-suggestion-form" class="suggestion-form">
+          <form
+            id="dish-suggestion-form"
+            class="suggestion-form"
+          >
             <div class="field">
               <label for="suggest-dish-name">Dish name</label>
               <input
@@ -125,7 +155,10 @@
                 placeholder="Share its story, flavor, or why you recommend it."
               ></textarea>
             </div>
-            <button class="button button-dark feedback-submit" type="submit">
+            <button
+              class="button button-dark feedback-submit"
+              type="submit"
+            >
               Send suggestion <span aria-hidden="true">→</span>
             </button>
           </form>
@@ -157,10 +190,17 @@
           aria-live="polite"
           hidden
         ></p>
-        <p id="suggestion-admin-empty" class="feedback-empty" hidden>
+        <p
+          id="suggestion-admin-empty"
+          class="feedback-empty"
+          hidden
+        >
           No dish suggestions are waiting for review.
         </p>
-        <ol id="dish-suggestion-list" class="feedback-list"></ol>
+        <ol
+          id="dish-suggestion-list"
+          class="feedback-list"
+        ></ol>
       </section>
     </main>
     <footer class="site-footer">
@@ -169,17 +209,34 @@
       <nav aria-label="Footer links">
         <a href="builders.html">Our Story</a>
         <a href="contact.html">Feedback</a>
-        <a href="suggest.html" aria-current="page">Suggest a dish</a>
+        <a
+          href="suggest.html"
+          aria-current="page"
+          >Suggest a dish</a
+        >
         <a href="login.html">Login</a>
       </nav>
     </footer>
-    <button class="back-to-top" type="button" aria-label="Back to top"></button>
+    <button
+      class="back-to-top"
+      type="button"
+      aria-label="Back to top"
+    ></button>
     <script
       src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
       defer
     ></script>
-    <script src="Javascript/supabase-config.js" defer></script>
-    <script src="Javascript/music-config.js" defer></script>
-    <script src="Javascript/script.js" defer></script>
+    <script
+      src="Javascript/supabase-config.js"
+      defer
+    ></script>
+    <script
+      src="Javascript/music-config.js"
+      defer
+    ></script>
+    <script
+      src="Javascript/script.js"
+      defer
+    ></script>
   </body>
 </html>

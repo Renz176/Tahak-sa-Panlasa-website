@@ -1,40 +1,47 @@
-SHARED FEEDBACK SETUP
+SUPABASE AUTHENTICATION, FEEDBACK, AND DISH SUGGESTIONS
 
-The Feedback page uses Supabase so ratings and comments can be loaded by visitors on different devices. The site cannot share feedback until a Supabase project is configured and the website is hosted online.
+All website accounts, public feedback, and dish suggestions use Supabase.
+The browser uses the Supabase project URL and public anon/publishable key.
+Never put a service_role key or secret key in this website.
 
-Create a Supabase project at https://supabase.com and open its SQL Editor. Run the complete contents of supabase/website-feedback.sql in that editor. This creates the website_feedback table, the website_admins role table, the dish_suggestions table, and row-level security policies. Everyone can read and add validated feedback. Visitors can submit dish suggestions, but only users specifically added to website_admins can read, approve, or remove them. Only admins can remove feedback. The browser application never grants administrator privileges.
+1. Create or open the Supabase project and run the complete SQL script in
+   supabase/website-tables.sql using the Supabase SQL Editor. The script
+   creates the feedback, suggestion, and administrator tables, row-level
+   security policies, grants, and the feedback realtime publication.
 
-In Supabase Project Settings, open the API settings and copy the Project URL and the public anon key (also called the publishable key). Put them into Javascript/supabase-config.js as the url and anonKey values. The anon or publishable key is intended for browser use and is safe to publish only with the row-level security policies in the supplied SQL installed. Never put a service_role key or secret key in this file or in browser code.
+2. Open Project Settings > API and copy the Project URL and public anon or
+   publishable key into Javascript/supabase-config.js as url and anonKey.
+   The URL must be the Supabase project URL ending in .supabase.co, not the
+   website's GitHub Pages address. The public key is safe for browser use
+   when row-level security is enabled.
 
-The separate Login page supports optional email/password accounts. Visitors do not need an account to post or read feedback. Anyone may create or sign in to a regular account, but signing up does not make that account an administrator. If email confirmation is enabled in Supabase Authentication settings, the new user must confirm their email before signing in.
+3. Enable email/password sign-in in Authentication > Providers. Configure
+   the deployed HTTPS website as the Site URL and add it to the allowed
+   redirect URLs. If email confirmation is enabled, visitors must confirm
+   their address before signing in.
 
-Deploy the website over HTTPS before testing account confirmation. In Supabase Authentication URL Configuration, set Site URL to the deployed website origin and add the deployed Login page URL to the allowed Redirect URLs. The Supabase JavaScript client is loaded from jsDelivr, so account and shared-feedback features also require an internet connection.
+4. To grant administrator access, create an account using Login, then copy
+   its user UUID from Authentication > Users. Run the following in SQL
+   Editor after replacing the example UUID:
 
-To create the first administrator account, use Create account on the Login page with the administrator's email and password. Confirm the email if requested, then sign in once. In the Supabase dashboard, open Authentication, then Users, and copy that account's user UUID. In the SQL Editor, run the following statement after replacing the placeholder with that exact UUID:
+   insert into public.website_admins (user_id)
+   values ('PASTE-THE-ADMIN-USER-UUID-HERE')
+   on conflict (user_id) do nothing;
 
-insert into public.website_admins (user_id)
-values ('PASTE-THE-ADMIN-USER-UUID-HERE')
-on conflict (user_id) do nothing;
+   Administrator records cannot be created or changed from the website.
+   The same administrator role controls feedback removal and suggestion
+   review. Revoke access by deleting the user's row from website_admins.
 
-After refreshing or signing in again, that account displays the Administrator badge and gets a Remove feedback action on each comment. On Suggest a dish, admins can view pending suggestions, approve them for the team to consider, or remove them. Approval does not automatically publish a dish: verify the information and add the dish to the catalog in Javascript/script.js. Admin status is backed by the website_admins table and enforced by Supabase row-level security, not by a browser setting. Do not add ordinary users to this table. To revoke administrator access, delete that user's row from public.website_admins in the Supabase SQL Editor.
+5. Enable Realtime for website_feedback if it is not already listed in the
+   supabase_realtime publication. The SQL script adds it when possible.
+   Public feedback updates live; dish suggestions are visible only to admins.
+   Approved suggestions still need to be reviewed and added to the local
+   catalog in Javascript/script.js.
 
-The config file should look like this, using the actual Project URL and public anon key from your own project:
+The public anon/publishable key is not an admin credential. Row-level
+security policies enforce all public and administrator permissions. Do not
+disable RLS. Back up existing tables before applying schema changes; the
+script preserves existing rows but legacy tables with different columns or
+invalid data may need a schema/data migration first.
 
-window.TAHAK_SUPABASE_CONFIG = {
-  url: "https://your-project-id.supabase.co",
-  anonKey: "your-public-anon-key"
-};
-
-Host the website using GitHub Pages or another HTTPS website host, and upload Javascript/supabase-config.js along with the rest of the site. The Feedback page loads the newest 100 comments, checks for updates every 30 seconds, and uses Supabase Auth for optional accounts. Feedback is shared only after the database and website configuration is completed; opening the site from a local file does not publish it online.
-
-The public feedback and dish-suggestion tables permit anyone to submit without signing in, so the site can receive spam or inappropriate content. Administrators can remove feedback from the Feedback page and moderate dish suggestions from Suggest a dish. Review the tables in Supabase and tighten the posting policies or require sign-in if abuse becomes a problem. Feedback that visitors previously saved only in browser storage is not automatically transferred to Supabase. Do not expose private information in public comments or dish suggestions.
-
-The Dishes navigation item opens dishes.html. The Suggest a dish page submits entries to dish_suggestions for review. A submitted suggestion is not a published dish, and approval only marks it for the team to verify and add to the website's dish catalog.
-
-SITE MUSIC SETUP
-
-The music player appears on every page and lets visitors play or pause, mute or unmute, and adjust volume. Playback is disabled until an audio file is supplied. Add an audio file that you have permission to use to the deployed website, then edit Javascript/music-config.js. Set src to its relative path, such as "audio/site-music.mp3", and optionally change title. The player starts only after a visitor presses Play. Volume and mute preferences are stored in that visitor's browser. The file path and audio format must be supported by the visitor's browser.
-
-The Panlasa Guide chatbot runs locally using curated website and dish information; it does not call an AI service. It can answer basic questions about dishes and the site's pages, feedback, login, suggestions, and music player. It works without Supabase, but cannot activate account or shared-data features that have not been configured.
-
-No administrator account or password is created by the website source code. The project owner must create an account through Login and promote that account using its own UUID in Supabase. Do not send account passwords or a Supabase service_role/secret key in chat or place secret keys in browser files.
+Accounts and records in other services are not migrated automatically.
